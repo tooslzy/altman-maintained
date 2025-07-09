@@ -16,7 +16,8 @@ namespace Roblox {
 	enum class BanCheckResult {
 		InvalidCookie,
 		Unbanned,
-		Banned
+		Banned,
+		Terminated
 	};
 
 	struct BanInfo {
@@ -41,9 +42,19 @@ namespace Roblox {
 
 		auto j = HttpClient::decode(response);
 		if (j.is_object() && j.contains("punishmentTypeDescription")) {
+			std::string punishmentType = j["punishmentTypeDescription"].get<std::string>();
 			time_t end = 0;
-			if (j.contains("endDate") && j["endDate"].is_string())
+			bool hasEndDate = j.contains("endDate") && j["endDate"].is_string() && !j["endDate"].get<std::string>().
+			                  empty();
+
+			if (hasEndDate) {
 				end = parseIsoTimestamp(j["endDate"].get<std::string>());
+			}
+
+			if (punishmentType == "Delete" && !hasEndDate) {
+				return {BanCheckResult::Terminated, 0};
+			}
+
 			return {BanCheckResult::Banned, end};
 		}
 		if (j.empty())
@@ -83,6 +94,10 @@ namespace Roblox {
 		BanCheckResult status = cachedBanStatus(cookie);
 		if (status == BanCheckResult::Banned) {
 			LOG_ERROR("Skipping request: cookie is banned");
+			return false;
+		}
+		if (status == BanCheckResult::Terminated) {
+			LOG_ERROR("Skipping request: cookie is terminated");
 			return false;
 		}
 		if (status == BanCheckResult::InvalidCookie) {

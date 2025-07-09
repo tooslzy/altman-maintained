@@ -215,10 +215,14 @@ int WINAPI WinMain(
                 acct.status = "Banned";
                 acct.banExpiry = banInfo.endDate;
                 g_selectedAccountIds.erase(acct.id);
+            } else if (banInfo.status == Roblox::BanCheckResult::Terminated) {
+                acct.status = "Terminated";
+                acct.banExpiry = 0;  // Terminated accounts don't have an end date
+                g_selectedAccountIds.erase(acct.id);
             }
         }
         for (auto &acct: g_accounts) {
-            if (acct.status == "Banned" || acct.userId.empty())
+            if (acct.status == "Banned" || acct.status == "Terminated" || acct.userId.empty())
                 continue;
 
             uint64_t uid = 0;

@@ -59,6 +59,10 @@ bool RenderMainMenu() {
                                                         acct.status = "Banned";
                                                         continue;
                                                 }
+                                                if (banStatus == Roblox::BanCheckResult::Terminated) {
+                                                        acct.status = "Terminated";
+                                                        continue;
+                                                }
 
 						if (!acct.userId.empty()) {
 							acct.status = Roblox::getPresence(acct.cookie, stoull(acct.userId));
