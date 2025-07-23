@@ -1,3 +1,6 @@
+# VSCode settings
+/.vscode/
+
 /.idea
 altman-debug
 altman-release
