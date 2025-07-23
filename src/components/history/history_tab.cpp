@@ -25,6 +25,7 @@
 #include "ui/confirm.h"
 #include "../../ui.h"
 #include "../data.h"
+#include "../accounts/accounts_join_ui.h"
 
 namespace fs = filesystem;
 using namespace ImGui;
@@ -287,6 +288,15 @@ void RenderHistoryTab() {
 				g_selected_log_idx = i;
 			if (!logInfo.placeId.empty() && !logInfo.jobId.empty() &&
 			    BeginPopupContextItem("HistoryRowCtx")) {
+				if (MenuItem("Fill Join Options")) {
+					uint64_t place_id_val = 0;
+					try {
+						place_id_val = stoull(logInfo.placeId);
+						FillJoinOptions(place_id_val, logInfo.jobId);
+					} catch (...) {
+						LOG_INFO("Invalid Place ID in log.");
+					}
+				}
 				if (MenuItem("Copy Place ID")) {
 					SetClipboardText(logInfo.placeId.c_str());
 				}
