@@ -347,8 +347,8 @@ int WINAPI WinMain(
     };
     RegisterClassExW(&wc);
     UINT dpi = GetDpiForSystem();
-    int width = MulDiv(950, dpi, 96);
-    int height = MulDiv(600, dpi, 96);
+    int width = MulDiv(1000, dpi, 96);
+    int height = MulDiv(560, dpi, 96);
     HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"AltMan", WS_OVERLAPPEDWINDOW, 100, 100, width, height, nullptr,
                                 nullptr,
                                 hInstance,
