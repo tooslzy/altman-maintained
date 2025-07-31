@@ -26,7 +26,7 @@
 #include "../../ui.h"
 #include "../data.h"
 #include "../accounts/accounts_join_ui.h"
-#include <Windows.h>
+#include <windows.h>
 
 namespace fs = filesystem;
 using namespace ImGui;
