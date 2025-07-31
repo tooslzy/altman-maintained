@@ -47,12 +47,12 @@ void RenderAccountsTable(vector<AccountData> &accounts_to_display, const char *t
 
 	if (BeginTable(table_id, column_count, table_flags, ImVec2(0.0f, table_height > 0 ? table_height - 2.0f : 0.0f)))
 	{
-		TableSetupColumn("Display Name", ImGuiTableColumnFlags_WidthStretch);
-		TableSetupColumn("Username", ImGuiTableColumnFlags_WidthStretch);
-		TableSetupColumn("UserID", ImGuiTableColumnFlags_WidthFixed, 100.0f);
-		TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed, 100.0f);
-		TableSetupColumn("Voice", ImGuiTableColumnFlags_WidthFixed, 100.0f);
-		TableSetupColumn("Note", ImGuiTableColumnFlags_WidthStretch);
+		TableSetupColumn("Display Name", ImGuiTableColumnFlags_WidthStretch, 1.0000f);
+		TableSetupColumn("Username", ImGuiTableColumnFlags_WidthStretch, 1.0000f);
+		TableSetupColumn("UserID", ImGuiTableColumnFlags_WidthStretch, 0.7000f);
+		TableSetupColumn("Status", ImGuiTableColumnFlags_WidthStretch, 0.5000f);
+		TableSetupColumn("Voice", ImGuiTableColumnFlags_WidthStretch, 0.4500f);
+		TableSetupColumn("Note", ImGuiTableColumnFlags_WidthStretch, 2.0000f);
 		TableSetupScrollFreeze(0, 1);
 
 		TableNextRow(ImGuiTableRowFlags_Headers);
