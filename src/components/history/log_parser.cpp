@@ -252,7 +252,7 @@ void parseLogFile(LogInfo &logInfo) {
 		logInfo.sessions.push_back(backwardCompatSession);
 	}
 	
-	// Sort sessions chronologically (newest first, oldest last)
+	// Sort sessions in descending order of timestamps (newest first, oldest last)
 	std::sort(logInfo.sessions.begin(), logInfo.sessions.end(), [](const GameSession& a, const GameSession& b) {
 		return a.timestamp > b.timestamp;
 	});
