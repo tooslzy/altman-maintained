@@ -24,6 +24,19 @@ using namespace std;
 
 bool g_multiRobloxEnabled = false;
 
+// Global state for duplicate account modal
+static struct {
+	bool showModal = false;
+	string pendingCookie;
+	string pendingUsername;
+	string pendingDisplayName;
+	string pendingPresence;
+	string pendingUserId;
+	Roblox::VoiceSettings pendingVoiceStatus;
+	int existingId = -1;
+	int nextId = -1;
+} g_duplicateAccountModal;
+
 
 bool RenderMainMenu() {
         static array<char, 2048> s_cookieInputBuffer = {};
@@ -109,25 +122,42 @@ bool RenderMainMenu() {
 							string presence = Roblox::getPresence(cookie, uid);
 							auto vs = Roblox::getVoiceChatStatus(cookie);
 
-							AccountData newAcct;
-							newAcct.id = nextId;
-							newAcct.cookie = cookie;
-							newAcct.userId = to_string(uid);
-							newAcct.username = move(username);
-							newAcct.displayName = move(displayName);
-							newAcct.status = move(presence);
-							newAcct.voiceStatus = vs.status;
-							newAcct.voiceBanExpiry = vs.bannedUntil;
-							newAcct.note = "";
-							newAcct.isFavorite = false;
+							// Check if an account with this userId already exists
+							auto existingAccount = find_if(g_accounts.begin(), g_accounts.end(),
+								[&](const AccountData &a) { return a.userId == to_string(uid); });
 
-							g_accounts.push_back(move(newAcct));
+							if (existingAccount != g_accounts.end()) {
+								// Store data for modal
+								g_duplicateAccountModal.pendingCookie = cookie;
+								g_duplicateAccountModal.pendingUsername = username;
+								g_duplicateAccountModal.pendingDisplayName = displayName;
+								g_duplicateAccountModal.pendingPresence = presence;
+								g_duplicateAccountModal.pendingUserId = to_string(uid);
+								g_duplicateAccountModal.pendingVoiceStatus = vs;
+								g_duplicateAccountModal.existingId = existingAccount->id;
+								g_duplicateAccountModal.nextId = nextId;
+								g_duplicateAccountModal.showModal = true;
+							} else {
+								// Create new account (no duplicate)
+								AccountData newAcct;
+								newAcct.id = nextId;
+								newAcct.cookie = cookie;
+								newAcct.userId = to_string(uid);
+								newAcct.username = move(username);
+								newAcct.displayName = move(displayName);
+								newAcct.status = move(presence);
+								newAcct.voiceStatus = vs.status;
+								newAcct.voiceBanExpiry = vs.bannedUntil;
+								newAcct.note = "";
+								newAcct.isFavorite = false;
 
-							LOG_INFO("Added account " +
-								to_string(nextId) + " - " +
-								g_accounts.back().displayName.c_str());
+								g_accounts.push_back(move(newAcct));
 
-							Data::SaveAccounts();
+								LOG_INFO("Added new account " +
+									to_string(nextId) + " - " +
+									g_accounts.back().displayName.c_str());
+								Data::SaveAccounts();
+							}
 						} catch (const exception &ex) {
 							LOG_ERROR(string("Could not add account via cookie: ") + ex.what());
 						}
@@ -326,6 +356,80 @@ bool RenderMainMenu() {
                 }
                 EndPopup();
         }
+
+	// Handle duplicate account prompt
+	if (g_duplicateAccountModal.showModal) {
+		OpenPopup("DuplicateAccountPrompt");
+		g_duplicateAccountModal.showModal = false;
+	}
+
+	if (BeginPopupModal("DuplicateAccountPrompt", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+		// Find existing account for display name
+		auto existingAccount = find_if(g_accounts.begin(), g_accounts.end(),
+			[](const AccountData &a) { 
+				return a.id == g_duplicateAccountModal.existingId; 
+			});
+		
+		if (existingAccount != g_accounts.end()) {
+			char buf[256];
+			snprintf(buf, sizeof(buf), 
+				"The cookie you entered is for an already existing account (%s). What would you like to do?",
+				existingAccount->displayName.c_str());
+			TextWrapped(buf);
+		} else {
+			TextWrapped("The cookie you entered is for an already existing account. What would you like to do?");
+		}
+		
+		Spacing();
+
+		if (Button("Update", ImVec2(100, 0))) {
+			// Update existing account
+			auto it = find_if(g_accounts.begin(), g_accounts.end(),
+				[](const AccountData &a) { return a.id == g_duplicateAccountModal.existingId; });
+			if (it != g_accounts.end()) {
+				it->cookie = g_duplicateAccountModal.pendingCookie;
+				it->username = g_duplicateAccountModal.pendingUsername;
+				it->displayName = g_duplicateAccountModal.pendingDisplayName;
+				it->status = g_duplicateAccountModal.pendingPresence;
+				it->voiceStatus = g_duplicateAccountModal.pendingVoiceStatus.status;
+				it->voiceBanExpiry = g_duplicateAccountModal.pendingVoiceStatus.bannedUntil;
+
+				LOG_INFO("Updated existing account " + to_string(it->id) + " - " + it->displayName);
+				Data::SaveAccounts();
+			}
+			CloseCurrentPopup();
+		}
+
+		SameLine();
+		if (Button("Discard", ImVec2(100, 0))) {
+			LOG_INFO("Discarded new cookie for existing account " + to_string(g_duplicateAccountModal.existingId));
+			CloseCurrentPopup();
+		}
+
+		SameLine();
+		if (Button("Force Add", ImVec2(100, 0))) {
+			// Create new account
+			AccountData newAcct;
+			newAcct.id = g_duplicateAccountModal.nextId;
+			newAcct.cookie = g_duplicateAccountModal.pendingCookie;
+			newAcct.userId = g_duplicateAccountModal.pendingUserId;
+			newAcct.username = g_duplicateAccountModal.pendingUsername;
+			newAcct.displayName = g_duplicateAccountModal.pendingDisplayName;
+			newAcct.status = g_duplicateAccountModal.pendingPresence;
+			newAcct.voiceStatus = g_duplicateAccountModal.pendingVoiceStatus.status;
+			newAcct.voiceBanExpiry = g_duplicateAccountModal.pendingVoiceStatus.bannedUntil;
+			newAcct.note = "";
+			newAcct.isFavorite = false;
+
+			g_accounts.push_back(move(newAcct));
+
+			LOG_INFO("Force added new account " + to_string(g_duplicateAccountModal.nextId) + " - " + g_duplicateAccountModal.pendingDisplayName);
+			Data::SaveAccounts();
+			CloseCurrentPopup();
+		}
+		
+		EndPopup();
+	}
 
 	return false;
 }
