@@ -100,23 +100,32 @@ static void RenderGameSearch() {
         "Z-A"
     };
 
-    float searchButtonWidth = CalcTextSize(" Search  \xEF\x80\x82 ").x + style.FramePadding.x * 2.0f;
+    float searchButtonWidth = CalcTextSize(" \xEF\x80\x82  Search ").x + style.FramePadding.x * 2.0f;
+    float clearButtonWidth = CalcTextSize(" \xEF\x87\xB8  Clear ").x + style.FramePadding.x * 2.0f;
 
     float comboWidth = CalcTextSize("Players (Low-High)").x + style.FramePadding.x * 4.0f;
-    float inputWidth = GetContentRegionAvail().x - searchButtonWidth - comboWidth - style.ItemSpacing.x * 2;
+    float inputWidth = GetContentRegionAvail().x - searchButtonWidth - clearButtonWidth - comboWidth - style.ItemSpacing.x * 3;
     if (inputWidth < 100.0f)
         inputWidth = 100.0f;
     PushItemWidth(inputWidth);
     InputTextWithHint("##game_search", "Search games", searchBuffer, sizeof(searchBuffer));
     PopItemWidth();
     SameLine(0, style.ItemSpacing.x);
-    if (Button(" Search  \xEF\x80\x82 ", ImVec2(searchButtonWidth, 0)) && searchBuffer[0] != '\0') {
+    if (Button(" \xEF\x80\x82  Search ", ImVec2(searchButtonWidth, 0)) && searchBuffer[0] != '\0') {
         selectedIndex = -1;
         originalGamesList = Roblox::searchGames(searchBuffer);
         erase_if(originalGamesList, [&](const GameInfo &g) {
             return favoriteGameIds.contains(g.universeId);
         });
         SortGamesList();
+        gameDetailCache.clear();
+    }
+    SameLine(0, style.ItemSpacing.x);
+    if (Button(" \xEF\x97\x8C  Clear ", ImVec2(clearButtonWidth, 0))) {
+        searchBuffer[0] = '\0';
+        selectedIndex = -1;
+        originalGamesList.clear();
+        gamesList.clear();
         gameDetailCache.clear();
     }
     SameLine(0, style.ItemSpacing.x);
@@ -267,7 +276,7 @@ void RenderGamesTab() {
 
     RenderGameSearch();
 
-    constexpr float GamesListWidth = 300.f;
+    constexpr float GamesListWidth = 375.f;
     float availableHeight = GetContentRegionAvail().y;
     float availableWidth = GetContentRegionAvail().x;
 

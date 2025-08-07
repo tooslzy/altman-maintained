@@ -140,7 +140,12 @@ void RenderFriendsTab()
         {
             if (acc.status == "Banned" || acc.status == "Warned" || acc.status == "Terminated")
                 continue; // Skip banned, warned and terminated accounts in the dropdown
-            const string &labelStr = acc.displayName.empty() ? acc.username : acc.displayName;
+            string labelStr;
+            if (acc.displayName == acc.username || acc.displayName.empty()) {
+                labelStr = acc.username;
+            } else {
+                labelStr = acc.displayName + " (" + acc.username + ")";
+            }
             float w = CalcTextSize(labelStr.c_str()).x;
             if (w > maxLabelWidth)
                 maxLabelWidth = w;
@@ -152,18 +157,28 @@ void RenderFriendsTab()
         SetNextItemWidth(comboWidth);
 
         PushID("AccountSelectorCombo");
-        const char *currentLabel = acct.displayName.empty() ? acct.username.c_str() : acct.displayName.c_str();
-        if (BeginCombo("##AccountSelector", currentLabel))
+        string currentLabelStr;
+        if (acct.displayName == acct.username || acct.displayName.empty()) {
+            currentLabelStr = acct.username;
+        } else {
+            currentLabelStr = acct.displayName + " (" + acct.username + ")";
+        }
+        if (BeginCombo("##AccountSelector", currentLabelStr.c_str()))
         {
             for (const auto &acc : g_accounts)
             {
                 if (acc.status == "Banned" || acc.status == "Warned" || acc.status == "Terminated")
                     continue; // Skip banned, warned and terminated accounts in the dropdown
-                const char *label = acc.displayName.empty() ? acc.username.c_str() : acc.displayName.c_str();
+                string labelStr;
+                if (acc.displayName == acc.username || acc.displayName.empty()) {
+                    labelStr = acc.username;
+                } else {
+                    labelStr = acc.displayName + " (" + acc.username + ")";
+                }
                 bool isSelected = (acc.id == g_viewAcctId);
                 // Push a unique ID for each account item in the dropdown
                 PushID(acc.id);
-                if (Selectable(label, isSelected))
+                if (Selectable(labelStr.c_str(), isSelected))
                 {
                     g_viewAcctId = acc.id;
                 }
@@ -255,7 +270,7 @@ void RenderFriendsTab()
         EndPopup();
     }
 
-    float friendsListWidth = 300.0f;
+    float friendsListWidth = 375.0f;
 
     BeginChild("##FriendsList", ImVec2(friendsListWidth, 0), true);
     if (g_friendsLoading.load() && g_friends.empty())

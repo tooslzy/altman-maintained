@@ -27,8 +27,10 @@ void RenderSettingsTab() {
                 Text("Default Account:");
 
                 // Build a list of non-banned accounts for the dropdown
+                std::vector<std::string> accountLabels;
                 std::vector<const char *> names;
-                std::vector<size_t> idxMap; // maps combo index -> g_accounts index
+                std::vector<size_t> idxMap;
+                accountLabels.reserve(g_accounts.size());
                 names.reserve(g_accounts.size());
                 idxMap.reserve(g_accounts.size());
 
@@ -37,8 +39,14 @@ void RenderSettingsTab() {
                         if (g_accounts[i].status == "Banned" || g_accounts[i].status == "Warned" || g_accounts[i].status == "Terminated")
                                 continue; // Skip banned and terminated accounts
 
-                        const char *labelPtr = g_accounts[i].displayName.c_str();
-                        names.push_back(labelPtr);
+                        std::string label;
+                        if (g_accounts[i].displayName == g_accounts[i].username) {
+                                label = g_accounts[i].displayName;
+                        } else {
+                                label = g_accounts[i].displayName + " (" + g_accounts[i].username + ")";
+                        }
+                        accountLabels.push_back(label);
+                        names.push_back(accountLabels.back().c_str());
                         idxMap.push_back(i);
 
                         if (g_accounts[i].id == g_defaultAccountId) {
