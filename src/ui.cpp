@@ -55,7 +55,7 @@ bool RenderUI()
     SetNextWindowSize(vp->WorkSize);
     ImGuiWindowFlags mainFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
                                  ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus |
-                                 ImGuiWindowFlags_NoResize;
+                                 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
     Begin("MainAppArea", nullptr, mainFlags);
 
     ImGuiStyle &style = GetStyle();
