@@ -14,6 +14,7 @@
 #include "system/multi_instance.h"
 #include "ui/confirm.h"
 #include "core/app_state.h"
+#include "core/status.h"
 #include "components.h"
 #include "data.h"
 #include "backup.h"
@@ -114,60 +115,87 @@ bool RenderMainMenu() {
 					bool canAdd = (s_cookieInputBuffer[0] != '\0');
 					if (canAdd && MenuItem("Add Cookie", nullptr, false, canAdd)) {
 						const string cookie = s_cookieInputBuffer.data();
-						try {
-							int maxId = 0;
-							for (auto &acct: g_accounts) {
-								if (acct.id > maxId)
-									maxId = acct.id;
+						
+						// Trim whitespace and validate cookie is not empty
+						string trimmedCookie = cookie;
+						trimmedCookie.erase(0, trimmedCookie.find_first_not_of(" \t\r\n"));
+						trimmedCookie.erase(trimmedCookie.find_last_not_of(" \t\r\n") + 1);
+						
+						if (trimmedCookie.empty()) {
+							Status::Error("Invalid cookie: Cookie cannot be empty");
+							s_cookieInputBuffer.fill('\0');
+						} else {
+							try {
+								// First, validate the cookie without making multiple API calls
+								Roblox::BanCheckResult banStatus = Roblox::cachedBanStatus(trimmedCookie);
+								if (banStatus == Roblox::BanCheckResult::InvalidCookie) {
+									Status::Error("Invalid cookie: Unable to authenticate with Roblox");
+									s_cookieInputBuffer.fill('\0');
+								} else {
+									int maxId = 0;
+									for (auto &acct: g_accounts) {
+										if (acct.id > maxId)
+											maxId = acct.id;
+									}
+									int nextId = maxId + 1;
+
+									uint64_t uid = Roblox::getUserId(trimmedCookie);
+									string username = Roblox::getUsername(trimmedCookie);
+									string displayName = Roblox::getDisplayName(trimmedCookie);
+									
+									// Double-check that we got valid user information
+									if (uid == 0 || username.empty() || displayName.empty()) {
+										Status::Error("Invalid cookie: Unable to retrieve user information");
+										s_cookieInputBuffer.fill('\0');
+									} else {
+									string userIdStr = to_string(uid);
+									
+									string presence = Roblox::getPresence(trimmedCookie, uid);
+									auto vs = Roblox::getVoiceChatStatus(trimmedCookie);
+
+									// Check if an account with this userId already exists
+									auto existingAccount = find_if(g_accounts.begin(), g_accounts.end(),
+										[&](const AccountData &a) { return a.userId == userIdStr; });
+
+									if (existingAccount != g_accounts.end()) {
+										// Store data for modal
+										g_duplicateAccountModal.pendingCookie = trimmedCookie;
+										g_duplicateAccountModal.pendingUsername = username;
+										g_duplicateAccountModal.pendingDisplayName = displayName;
+										g_duplicateAccountModal.pendingPresence = presence;
+										g_duplicateAccountModal.pendingUserId = userIdStr;
+										g_duplicateAccountModal.pendingVoiceStatus = vs;
+										g_duplicateAccountModal.existingId = existingAccount->id;
+										g_duplicateAccountModal.nextId = nextId;
+										g_duplicateAccountModal.showModal = true;
+									} else {
+										// Create new account (no duplicate)
+										AccountData newAcct;
+										newAcct.id = nextId;
+										newAcct.cookie = trimmedCookie;
+										newAcct.userId = userIdStr;
+										newAcct.username = move(username);
+										newAcct.displayName = move(displayName);
+										newAcct.status = move(presence);
+										newAcct.voiceStatus = vs.status;
+										newAcct.voiceBanExpiry = vs.bannedUntil;
+										newAcct.note = "";
+										newAcct.isFavorite = false;
+
+										g_accounts.push_back(move(newAcct));
+
+										LOG_INFO("Added new account " +
+											to_string(nextId) + " - " +
+											g_accounts.back().displayName.c_str());
+										Data::SaveAccounts();
+									}
+								}
 							}
-							int nextId = maxId + 1;
-
-							uint64_t uid = Roblox::getUserId(cookie);
-							string username = Roblox::getUsername(cookie);
-							string displayName = Roblox::getDisplayName(cookie);
-							string presence = Roblox::getPresence(cookie, uid);
-							auto vs = Roblox::getVoiceChatStatus(cookie);
-
-							// Check if an account with this userId already exists
-							auto existingAccount = find_if(g_accounts.begin(), g_accounts.end(),
-								[&](const AccountData &a) { return a.userId == to_string(uid); });
-
-							if (existingAccount != g_accounts.end()) {
-								// Store data for modal
-								g_duplicateAccountModal.pendingCookie = cookie;
-								g_duplicateAccountModal.pendingUsername = username;
-								g_duplicateAccountModal.pendingDisplayName = displayName;
-								g_duplicateAccountModal.pendingPresence = presence;
-								g_duplicateAccountModal.pendingUserId = to_string(uid);
-								g_duplicateAccountModal.pendingVoiceStatus = vs;
-								g_duplicateAccountModal.existingId = existingAccount->id;
-								g_duplicateAccountModal.nextId = nextId;
-								g_duplicateAccountModal.showModal = true;
-							} else {
-								// Create new account (no duplicate)
-								AccountData newAcct;
-								newAcct.id = nextId;
-								newAcct.cookie = cookie;
-								newAcct.userId = to_string(uid);
-								newAcct.username = move(username);
-								newAcct.displayName = move(displayName);
-								newAcct.status = move(presence);
-								newAcct.voiceStatus = vs.status;
-								newAcct.voiceBanExpiry = vs.bannedUntil;
-								newAcct.note = "";
-								newAcct.isFavorite = false;
-
-								g_accounts.push_back(move(newAcct));
-
-								LOG_INFO("Added new account " +
-									to_string(nextId) + " - " +
-									g_accounts.back().displayName.c_str());
-								Data::SaveAccounts();
+							} catch (const exception &ex) {
+								LOG_ERROR(string("Could not add account via cookie: ") + ex.what());
 							}
-						} catch (const exception &ex) {
-							LOG_ERROR(string("Could not add account via cookie: ") + ex.what());
+							s_cookieInputBuffer.fill('\0');
 						}
-						s_cookieInputBuffer.fill('\0');
 					}
 					ImGui::EndMenu();
 				}

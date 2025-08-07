@@ -130,10 +130,28 @@ bool Backup::Import(const std::string &file, const std::string &password, std::s
         acct.cookie = item.value("cookie", "");
         acct.note = item.value("note", "");
         acct.isFavorite = item.value("isFavorite", false);
+        
+        // Validate cookie first to avoid multiple error messages
+        Roblox::BanCheckResult banStatus = Roblox::cachedBanStatus(acct.cookie);
+        if (banStatus == Roblox::BanCheckResult::InvalidCookie) {
+            LOG_WARN("Skipping account with invalid cookie during backup import (ID: " + std::to_string(acct.id) + ")");
+            continue;
+        }
+        
+        // Get user information
         uint64_t uid = Roblox::getUserId(acct.cookie);
+        string username = Roblox::getUsername(acct.cookie);
+        string displayName = Roblox::getDisplayName(acct.cookie);
+        
+        // Double-check that we got valid user data
+        if (uid == 0 || username.empty() || displayName.empty()) {
+            LOG_WARN("Skipping account with invalid data during backup import (ID: " + std::to_string(acct.id) + ")");
+            continue;
+        }
+        
         acct.userId = std::to_string(uid);
-        acct.username = Roblox::getUsername(acct.cookie);
-        acct.displayName = Roblox::getDisplayName(acct.cookie);
+        acct.username = username;
+        acct.displayName = displayName;
         acct.status = Roblox::getPresence(acct.cookie, uid);
         auto vs = Roblox::getVoiceChatStatus(acct.cookie);
         acct.voiceStatus = vs.status;

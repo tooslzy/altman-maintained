@@ -27,6 +27,9 @@ static ImVec4 getStatusColor(std::string statusCode) {
 	if (statusCode == "Terminated") {
 		return ImVec4(0.8f, 0.1f, 0.1f, 1.0f);  // Darker red for terminated accounts
 	}
+	if (statusCode == "InvalidCookie") {
+		return ImVec4(0.9f, 0.4f, 0.9f, 1.0f);  // Purple/magenta for invalid cookies
+	}
 	return ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
 }
 

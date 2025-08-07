@@ -15,6 +15,9 @@ namespace Roblox {
         static std::string getPresence(
                 const std::string &cookie,
                 uint64_t userId) {
+                BanCheckResult status = cachedBanStatus(cookie);
+                if (status == BanCheckResult::InvalidCookie)
+                        return "InvalidCookie";
                 if (!canUseCookie(cookie))
                         return "Banned";
 
