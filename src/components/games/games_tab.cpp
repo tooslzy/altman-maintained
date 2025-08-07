@@ -121,7 +121,7 @@ static void RenderGameSearch() {
         gameDetailCache.clear();
     }
     SameLine(0, style.ItemSpacing.x);
-    if (Button(" \xEF\x97\x8C  Clear ", ImVec2(clearButtonWidth, 0))) {
+    if (Button(" \xEF\x87\xB8  Clear ", ImVec2(clearButtonWidth, 0))) {
         searchBuffer[0] = '\0';
         selectedIndex = -1;
         originalGamesList.clear();
