@@ -275,7 +275,7 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 
 	PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(0.0f, 4.0f));
 	if (BeginTable("HistoryInfoTable", 2, tableFlags)) {
-		TableSetupColumn("##historylabel", ImGuiTableColumnFlags_WidthFixed, 110.f);
+		TableSetupColumn("##historylabel", ImGuiTableColumnFlags_WidthFixed, GetFontSize() * 6.875f); // ~110px
 		TableSetupColumn("##historyvalue", ImGuiTableColumnFlags_WidthStretch);
 
 		auto addRow = [&](const char *label, const string &value) {
@@ -385,8 +385,8 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 				ImGui::PopStyleColor(3);
 				
 				// Using a table for aligned fields
-				if (BeginTable("InstanceDetailsTable", 2, ImGuiTableFlags_BordersInnerV)) {
-					TableSetupColumn("##field", ImGuiTableColumnFlags_WidthFixed, 120.0f); // Increased width to prevent Universe ID from being cut off
+					if (BeginTable("InstanceDetailsTable", 2, ImGuiTableFlags_BordersInnerV)) {
+						TableSetupColumn("##field", ImGuiTableColumnFlags_WidthFixed, GetFontSize() * 7.5f); // ~120px
 					TableSetupColumn("##value", ImGuiTableColumnFlags_WidthStretch);
 					
 					// Place ID
@@ -622,7 +622,7 @@ void RenderHistoryTab() {
 	if (detailWidth <= 0)
 		detailWidth = GetContentRegionAvail().x - listWidth - GetStyle().ItemSpacing.x;
 	if (listWidth <= 0)
-		listWidth = 150; // Reduced minimum width from 200 to 150
+		listWidth = GetFontSize() * 9.375f; // ~150px at 16px
 
 	BeginChild("##HistoryList", ImVec2(listWidth, 0), true); {
 		lock_guard<mutex> lk(g_logs_mtx);

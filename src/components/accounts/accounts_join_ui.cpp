@@ -85,9 +85,11 @@ void RenderJoinOptions() {
 
     if (join_type_combo_index == 1) {
         float w = GetContentRegionAvail().x;
-        if (w < 100.0f)
-            w = 100.0f;
-    if (w < 420.0f) w = 420.0f;
+        float minField = GetFontSize() * 6.25f; // ~100px
+        float minWide = GetFontSize() * 26.25f; // ~420px
+        if (w < minField)
+            w = minField;
+        if (w < minWide) w = minWide;
         PushItemWidth(w);
 
         bool placeErr = false;
@@ -125,9 +127,11 @@ void RenderJoinOptions() {
         PopItemWidth();
     } else {
         float w = GetContentRegionAvail().x;
-        if (w < 100.0f)
-            w = 100.0f;
-        if (w < 420.0f) w = 420.0f;
+        float minField = GetFontSize() * 6.25f; // ~100px
+        float minWide = GetFontSize() * 26.25f; // ~420px
+        if (w < minField)
+            w = minField;
+        if (w < minWide) w = minWide;
         PushItemWidth(w);
         bool showError = false;
         if (join_type_combo_index == 2) {

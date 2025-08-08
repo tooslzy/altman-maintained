@@ -263,7 +263,8 @@ void RenderFriendsTab()
     TextUnformatted("Enter one or more players, separated by commas or new lines. Each entry can be a username or a userId (formatted as id=000).");
     PopTextWrapPos();
     float fieldWidth = GetContentRegionAvail().x;
-    fieldWidth = (fieldWidth < 100.0f) ? 100.0f : fieldWidth;
+    float minField = GetFontSize() * 6.25f; // ~100px at 16px
+    fieldWidth = (fieldWidth < minField) ? minField : fieldWidth;
     fieldWidth = (fieldWidth < 560.0f) ? 560.0f : fieldWidth; // slightly wider
     string validateErr;
     vector<UserSpecifier> specsPreview;
@@ -337,7 +338,12 @@ void RenderFriendsTab()
         EndPopup();
     }
 
-    float friendsListWidth = 375.0f;
+    float availW = GetContentRegionAvail().x;
+    float minSide = GetFontSize() * 14.0f; // ~224px at 16px
+    float maxSide = GetFontSize() * 20.0f; // ~320px at 16px
+    float friendsListWidth = availW * 0.28f;
+    if (friendsListWidth < minSide) friendsListWidth = minSide;
+    if (friendsListWidth > maxSide) friendsListWidth = maxSide;
 
     BeginChild("##FriendsList", ImVec2(friendsListWidth, 0), true);
     if (g_friendsLoading.load() && g_friends.empty())
@@ -593,7 +599,7 @@ void RenderFriendsTab()
             PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(0.0f, 4.0f));
             if (BeginTable("FriendInfoTable", 2, tableFlags))
             {
-                TableSetupColumn("##friendlabel", ImGuiTableColumnFlags_WidthFixed, 120.f);
+                TableSetupColumn("##friendlabel", ImGuiTableColumnFlags_WidthFixed, GetFontSize() * 7.5f); // ~120px
                 TableSetupColumn("##friendvalue", ImGuiTableColumnFlags_WidthStretch);
 
                 auto addFriendDataRow = [&](const char *label, const string &value, bool isWrapped = false)

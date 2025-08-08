@@ -116,8 +116,9 @@ void RenderServersTab()
     float nextButtonWidth = CalcTextSize("Next Page \xEF\x81\x94").x + style.FramePadding.x * 2.0f;
     float buttons_total_width = fetchButtonWidth + prevButtonWidth + nextButtonWidth + style.ItemSpacing.x * 2;
     float inputWidth = GetContentRegionAvail().x - buttons_total_width - style.ItemSpacing.x;
-    if (inputWidth < 100.0f)
-        inputWidth = 100.0f;
+    float minField = GetFontSize() * 6.25f; // ~100px at 16px base
+    if (inputWidth < minField)
+        inputWidth = minField;
     PushItemWidth(inputWidth);
     InputTextWithHint("##placeid_servers", "Place Id", s_placeIdBuffer, sizeof(s_placeIdBuffer));
     PopItemWidth();
@@ -169,8 +170,9 @@ void RenderServersTab()
 
     float comboWidth = CalcTextSize("Players (Desc)").x + style.FramePadding.x * 7.0f;
     float searchInputWidth = GetContentRegionAvail().x - comboWidth - style.ItemSpacing.x;
-    if (searchInputWidth < 100.0f)
-        searchInputWidth = 100.0f;
+    float minSearch = GetFontSize() * 6.25f;
+    if (searchInputWidth < minSearch)
+        searchInputWidth = minSearch;
     PushItemWidth(searchInputWidth);
     InputTextWithHint("##search_servers", "Search...", s_searchBuffer, sizeof(s_searchBuffer));
     PopItemWidth();
@@ -244,9 +246,10 @@ void RenderServersTab()
     if (BeginTable("ServersTable", columnCount, table_flags, ImVec2(0, GetContentRegionAvail().y)))
     {
         TableSetupColumn("Job ID", ImGuiTableColumnFlags_WidthStretch);
-        TableSetupColumn("Players", ImGuiTableColumnFlags_WidthFixed, 80.0f);
-        TableSetupColumn("Ping", ImGuiTableColumnFlags_WidthFixed, 70.0f);
-        TableSetupColumn("FPS", ImGuiTableColumnFlags_WidthFixed, 70.0f);
+    float base = GetFontSize();
+    TableSetupColumn("Players", ImGuiTableColumnFlags_WidthFixed, base * 5.0f); // ~80px at 16px
+    TableSetupColumn("Ping", ImGuiTableColumnFlags_WidthFixed, base * 4.375f);  // ~70px at 16px
+    TableSetupColumn("FPS", ImGuiTableColumnFlags_WidthFixed, base * 4.375f);
         TableSetupScrollFreeze(0, 1);
         TableNextRow(ImGuiTableRowFlags_Headers);
         TableNextColumn();

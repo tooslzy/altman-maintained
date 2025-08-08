@@ -95,7 +95,7 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
                 g_editing_note_for_account_id_ctx = account.id;
             }
 
-            PushItemWidth(250.0f);
+            PushItemWidth(GetFontSize() * 15.625f); // ~250px at 16px base
             InputTextMultiline("##EditNoteInput", g_edit_note_buffer_ctx, sizeof(g_edit_note_buffer_ctx),
                                ImVec2(0, GetTextLineHeight() * 4));
             PopItemWidth();

@@ -66,8 +66,9 @@ namespace Console {
 		float copyButtonWidth = CalcTextSize("Copy").x + style.FramePadding.x * 2.0f;
 		float buttons_total_width = clearButtonWidth + copyButtonWidth + style.ItemSpacing.x;
 		float searchBarWidth = GetContentRegionAvail().x - buttons_total_width - style.ItemSpacing.x;
-		if (searchBarWidth < 100.0f) {
-			searchBarWidth = 100.0f;
+		float minField = GetFontSize() * 6.25f; // ~100px at 16px
+		if (searchBarWidth < minField) {
+			searchBarWidth = minField;
 		}
 		PushItemWidth(searchBarWidth);
 		InputTextWithHint("##SearchLog", "Search...", g_searchBuffer, IM_ARRAYSIZE(g_searchBuffer));
@@ -97,8 +98,9 @@ namespace Console {
 
 		float footer_height_to_reserve = style.ItemSpacing.y;
 		float childHeight = GetContentRegionAvail().y - footer_height_to_reserve;
-		if (childHeight < GetTextLineHeightWithSpacing() * 3) {
-			childHeight = GetTextLineHeightWithSpacing() * 3;
+		float minChild = GetTextLineHeightWithSpacing() * 3.0f;
+		if (childHeight < minChild) {
+			childHeight = minChild;
 		}
 
 		PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, original_child_window_padding_y / 2));

@@ -341,9 +341,9 @@ void RenderInventoryTab() {
         TextUnformatted("Failed to fetch equipped items.");
     } else if (!s_equippedAssetIds.empty()) {
         // Dynamic equipped items grid sizing
-        constexpr float EQUIP_MIN_CELL = 60.f;
-        float equipAvailX = leftWidth - GetStyle().ItemSpacing.x * 2;
-        int equipColumns = static_cast<int>(std::floor(equipAvailX / EQUIP_MIN_CELL));
+    float equipMinCell = GetFontSize() * 3.75f; // ~60px at 16px
+    float equipAvailX = leftWidth - GetStyle().ItemSpacing.x * 2;
+    int equipColumns = static_cast<int>(std::floor(equipAvailX / equipMinCell));
         if (equipColumns < 1)
             equipColumns = 1;
         float equipCellSize = (equipAvailX - (equipColumns - 1) * GetStyle().ItemSpacing.x) / equipColumns;
@@ -477,8 +477,9 @@ void RenderInventoryTab() {
     if (assetComboWidth > 0)
         inputWidth -= style.ItemSpacing.x;
     inputWidth -= style.ItemSpacing.x; // space between search and category combo
-    if (inputWidth < 100.0f)
-        inputWidth = 100.0f;
+    float minField = GetFontSize() * 6.25f; // ~100px at 16px
+    if (inputWidth < minField)
+        inputWidth = minField;
 
     // Determine current asset type to display (needed for dynamic search hint)
     int assetTypeId = s_categories[s_selectedCategory].assetTypes[s_selectedAssetTypeIndex].first;
@@ -597,7 +598,7 @@ void RenderInventoryTab() {
             filterLower = std::move(sb);
         }
 
-        constexpr float MIN_CELL_SIZE = 100.f;
+    float MIN_CELL_SIZE = GetFontSize() * 6.25f; // ~100px at 16px
         float availX = GetContentRegionAvail().x;
         int columns = static_cast<int>(std::floor(availX / MIN_CELL_SIZE));
         if (columns < 1)

@@ -23,6 +23,11 @@
 using namespace ImGui;
 using namespace std;
 
+template <typename Container, typename Pred>
+static inline void erase_if_local(Container &c, Pred p) {
+    c.erase(remove_if(c.begin(), c.end(), p), c.end());
+}
+
 static char searchBuffer[64] = "";
 static int selectedIndex = -1;
 static vector<GameInfo> gamesList;
@@ -105,8 +110,9 @@ static void RenderGameSearch() {
 
     float comboWidth = CalcTextSize("Players (Low-High)").x + style.FramePadding.x * 4.0f;
     float inputWidth = GetContentRegionAvail().x - searchButtonWidth - clearButtonWidth - comboWidth - style.ItemSpacing.x * 3;
-    if (inputWidth < 100.0f)
-        inputWidth = 100.0f;
+    float minField = GetFontSize() * 6.25f; // ~100px at 16px base
+    if (inputWidth < minField)
+        inputWidth = minField;
     PushItemWidth(inputWidth);
     InputTextWithHint("##game_search", "Search games", searchBuffer, sizeof(searchBuffer));
     PopItemWidth();
@@ -114,8 +120,8 @@ static void RenderGameSearch() {
     if (Button(" \xEF\x80\x82  Search ", ImVec2(searchButtonWidth, 0)) && searchBuffer[0] != '\0') {
         selectedIndex = -1;
         originalGamesList = Roblox::searchGames(searchBuffer);
-        erase_if(originalGamesList, [&](const GameInfo &g) {
-            return favoriteGameIds.contains(g.universeId);
+        erase_if_local(originalGamesList, [&](const GameInfo &g) {
+            return favoriteGameIds.count(g.universeId) != 0;
         });
         SortGamesList();
         gameDetailCache.clear();
@@ -201,18 +207,18 @@ static void RenderFavoritesList(float listWidth, float availableHeight) {
                 if (MenuItem("Unfavorite")) {
                     uint64_t universeIdToRemove = game.universeId;
                     favoriteGameIds.erase(universeIdToRemove);
-                    erase_if(favoriteGamesList,
-                             [&](const GameInfo &gameInfo) {
-                                 return gameInfo.universeId == universeIdToRemove;
-                             });
+                    erase_if_local(favoriteGamesList,
+                                   [&](const GameInfo &gameInfo) {
+                                       return gameInfo.universeId == universeIdToRemove;
+                                   });
 
                     if (selectedIndex == -1000 - index)
                         selectedIndex = -1;
 
-                    erase_if(g_favorites,
-                             [&](const FavoriteGame &favoriteGame) {
-                                 return favoriteGame.universeId == universeIdToRemove;
-                             });
+                    erase_if_local(g_favorites,
+                                   [&](const FavoriteGame &favoriteGame) {
+                                       return favoriteGame.universeId == universeIdToRemove;
+                                   });
                     Data::SaveFavorites();
                     CloseCurrentPopup();
                 }
@@ -227,7 +233,7 @@ static void RenderFavoritesList(float listWidth, float availableHeight) {
 static void RenderSearchResultsList(float listWidth, float availableHeight) {
     for (int index = 0; index < static_cast<int>(gamesList.size()); ++index) {
         const auto &game = gamesList[index];
-        if (favoriteGameIds.contains(game.universeId))
+    if (favoriteGameIds.count(game.universeId) != 0)
             continue;
         PushID(static_cast<int>(game.universeId));
 
@@ -243,7 +249,7 @@ static void RenderSearchResultsList(float listWidth, float availableHeight) {
                 SetClipboardText(to_string(game.placeId).c_str());
             if (MenuItem("Copy Universe ID"))
                 SetClipboardText(to_string(game.universeId).c_str());
-            if (MenuItem("Favorite") && !favoriteGameIds.contains(game.universeId)) {
+            if (MenuItem("Favorite") && favoriteGameIds.count(game.universeId) == 0) {
                 favoriteGameIds.insert(game.universeId);
                 GameInfo favoriteGameInfo = game;
                 favoriteGamesList.insert(favoriteGamesList.begin(), favoriteGameInfo);
@@ -276,24 +282,27 @@ void RenderGamesTab() {
 
     RenderGameSearch();
 
-    constexpr float GamesListWidth = 375.f;
     float availableHeight = GetContentRegionAvail().y;
     float availableWidth = GetContentRegionAvail().x;
+    float minSide = GetFontSize() * 14.0f; // ~224px at 16px
+    float maxSide = GetFontSize() * 20.0f; // ~320px at 16px
+    float baseSideWidth = availableWidth * 0.28f;
+    if (baseSideWidth < minSide) baseSideWidth = minSide;
+    if (baseSideWidth > maxSide) baseSideWidth = maxSide;
 
-    BeginChild("##GamesList", ImVec2(GamesListWidth, availableHeight), true);
-    RenderFavoritesList(GamesListWidth, availableHeight);
+    BeginChild("##GamesList", ImVec2(baseSideWidth, availableHeight), true);
+    RenderFavoritesList(baseSideWidth, availableHeight);
     if (!favoriteGamesList.empty() && !gamesList.empty() && any_of(gamesList.begin(), gamesList.end(),
                                                                    [&](const GameInfo &gameInfo) {
-                                                                       return !favoriteGameIds.contains(
-                                                                           gameInfo.universeId);
+                                                                       return favoriteGameIds.count(gameInfo.universeId) == 0;
                                                                    })) {
         Separator();
     }
-    RenderSearchResultsList(GamesListWidth, availableHeight);
+    RenderSearchResultsList(baseSideWidth, availableHeight);
     EndChild();
     SameLine();
 
-    RenderGameDetailsPanel(availableWidth - GamesListWidth - GetStyle().ItemSpacing.x, availableHeight);
+    RenderGameDetailsPanel(availableWidth - baseSideWidth - GetStyle().ItemSpacing.x, availableHeight);
 }
 
 static void RenderGameDetailsPanel(float panelWidth, float availableHeight) {
@@ -340,7 +349,7 @@ static void RenderGameDetailsPanel(float panelWidth, float availableHeight) {
 
         PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(0.0f, 4.0f));
         if (BeginTable("GameInfoTable", 2, tableFlags)) {
-            TableSetupColumn("##label", ImGuiTableColumnFlags_WidthFixed, 140.f);
+            TableSetupColumn("##label", ImGuiTableColumnFlags_WidthFixed, GetFontSize() * 8.75f); // ~140px at 16px
             TableSetupColumn("##value", ImGuiTableColumnFlags_WidthStretch);
 
             auto addRow = [&](const char *label, const string &valueString,

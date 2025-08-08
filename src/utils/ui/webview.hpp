@@ -54,11 +54,6 @@ public:
 	bool create() {
 		HINSTANCE hInstance = GetModuleHandleW(nullptr);
 
-		// Enable per‑monitor DPI awareness once.
-		static std::once_flag dpiFlag;
-		std::call_once(dpiFlag, [] {
-			SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-		});
 
 		// Register window class once.
 		static std::once_flag clsFlag;
@@ -207,6 +202,8 @@ private:
 				RECT *nr = reinterpret_cast<RECT *>(l);
 				SetWindowPos(h, nullptr, nr->left, nr->top, nr->right - nr->left,
 				             nr->bottom - nr->top, SWP_NOZORDER | SWP_NOACTIVATE);
+					// Update WebView bounds and rasterization scale for new DPI
+					self->resize();
 				return 0;
 			}
 			case WM_DESTROY:
