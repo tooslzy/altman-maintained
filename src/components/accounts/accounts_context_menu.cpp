@@ -163,7 +163,6 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
         // Note submenu
         if (BeginMenu("Note")) {
             if (MenuItem("Copy Note")) SetClipboardText(account.note.c_str());
-            Separator();
             if (BeginMenu("Edit Note")) {
                 if (g_editing_note_for_account_id_ctx != account.id) {
                     strncpy_s(g_edit_note_buffer_ctx, account.note.c_str(), sizeof(g_edit_note_buffer_ctx) - 1);
@@ -257,7 +256,7 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
             Data::SaveSettings("settings.json");
         }
 
-    PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.4f, 0.4f, 1.f));
+    PushStyleColor(ImGuiCol_Text, getStatusColor("Terminated"));
     if (MenuItem("Remove Account")) {
             char buf[256];
             snprintf(buf, sizeof(buf), "Delete %s?", account.displayName.c_str());

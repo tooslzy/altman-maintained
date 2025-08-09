@@ -25,13 +25,13 @@ static ImVec4 getStatusColor(std::string statusCode) {
 		return ImVec4(1.0f, 0.3f, 0.3f, 1.0f);
 	}
 	if (statusCode == "Warned") {
-		return ImVec4(1.0f, 0.8f, 0.3f, 1.0f);  // Orange/yellow for warnings
+		return ImVec4(1.0f, 0.8f, 0.0f, 1.0f);
 	}
 	if (statusCode == "Terminated") {
-		return ImVec4(0.8f, 0.1f, 0.1f, 1.0f);  // Darker red for terminated accounts
+		return ImVec4(0.8f, 0.1f, 0.1f, 1.0f);
 	}
 	if (statusCode == "InvalidCookie") {
-		return ImVec4(0.9f, 0.4f, 0.9f, 1.0f);  // Purple/magenta for invalid cookies
+		return ImVec4(0.9f, 0.4f, 0.9f, 1.0f);
 	}
 	return ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
 }
