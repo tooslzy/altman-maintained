@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <filesystem>
 #include <unordered_map>
+#include <unordered_set>
 #include <windows.h>
 #include <dpapi.h>
 
@@ -326,8 +327,12 @@ namespace Data {
             auto parseList = [](const json &arr) {
                 std::vector<FriendInfo> out;
                 for (auto &f: arr) {
+                    if (!f.is_object()) {
+                        LOG_INFO("Skipping malformed friend entry (expected object)");
+                        continue;
+                    }
                     FriendInfo fi;
-                    fi.id = f.value("id", 0ULL);
+                    fi.id = f.value("userId", 0ULL);
                     fi.username = f.value("username", "");
                     fi.displayName = f.value("displayName", "");
                     out.push_back(std::move(fi));
@@ -335,22 +340,53 @@ namespace Data {
                 return out;
             };
 
-            if (j.contains("friends") || j.contains("unfriended")) {
-                for (auto it = j["friends"].begin(); it != j["friends"].end(); ++it) {
-                    int acctId = std::stoi(it.key());
-                    g_accountFriends[acctId] = parseList(it.value());
+            // New format: root object keyed by account userId -> { friends: [...], unfriended: [...] }
+            if (!j.is_object()) {
+                LOG_ERROR("Invalid friends.json format: expected root object keyed by userId");
+                LOG_INFO("Starting with empty friend lists");
+                return;
+            }
+
+            std::unordered_map<std::string, int> userIdToAccountId;
+            for (const auto &a : g_accounts) {
+                if (!a.userId.empty()) userIdToAccountId[a.userId] = a.id;
+            }
+
+            for (auto it = j.begin(); it != j.end(); ++it) {
+                const std::string keyUserId = it.key();
+                auto itMap = userIdToAccountId.find(keyUserId);
+                if (itMap == userIdToAccountId.end()) {
+                    LOG_INFO("Skipping data for unknown userId key: " + keyUserId);
+                    continue;
                 }
-                if (j.contains("unfriended")) {
-                    for (auto it = j["unfriended"].begin(); it != j["unfriended"].end(); ++it) {
-                        int acctId = std::stoi(it.key());
-                        g_unfriendedFriends[acctId] = parseList(it.value());
-                    }
+                if (!it.value().is_object()) {
+                    LOG_INFO("Skipping malformed entry for userId key (expected object): " + keyUserId);
+                    continue;
                 }
-            } else {
-                for (auto it = j.begin(); it != j.end(); ++it) {
-                    int acctId = std::stoi(it.key());
-                    g_accountFriends[acctId] = parseList(it.value());
+                int acctId = itMap->second;
+                const auto &acctObj = it.value();
+                std::vector<FriendInfo> friends;
+                if (acctObj.contains("friends") && acctObj["friends"].is_array()) {
+                    friends = parseList(acctObj["friends"]);
                 }
+                std::vector<FriendInfo> unf;
+                if (acctObj.contains("unfriended") && acctObj["unfriended"].is_array()) {
+                    unf = parseList(acctObj["unfriended"]);
+                }
+
+                std::unordered_set<uint64_t> friendIds;
+                friendIds.reserve(friends.size());
+                for (const auto &f : friends) friendIds.insert(f.id);
+                std::unordered_set<uint64_t> seen;
+                std::vector<FriendInfo> filtered;
+                filtered.reserve(unf.size());
+                for (auto &u : unf) {
+                    if (friendIds.find(u.id) != friendIds.end()) continue;
+                    if (seen.insert(u.id).second) filtered.push_back(std::move(u));
+                }
+
+                g_accountFriends[acctId] = std::move(friends);
+                g_unfriendedFriends[acctId] = std::move(filtered);
             }
 
             LOG_INFO("Loaded friend data for " + std::to_string(g_accountFriends.size()) + " accounts");
@@ -361,28 +397,50 @@ namespace Data {
 
     void SaveFriends(const std::string &filename) {
         std::string path = MakePath(filename);
-        json jFriends = json::object();
+        json root = json::object();
+        std::unordered_map<int, std::string> accountIdToUserId;
+        for (const auto &a : g_accounts) {
+            if (!a.userId.empty()) accountIdToUserId[a.id] = a.userId;
+        }
+
         for (const auto &[acctId, friends]: g_accountFriends) {
+            auto itUser = accountIdToUserId.find(acctId);
+            if (itUser == accountIdToUserId.end() || itUser->second.empty()) {
+                LOG_INFO("Skipping save for accountId without userId: " + std::to_string(acctId));
+                continue;
+            }
+            const std::string &keyUserId = itUser->second;
             json arr = json::array();
             for (const auto &f: friends) {
-                arr.push_back({{"id", f.id}, {"username", f.username}, {"displayName", f.displayName}});
+                arr.push_back({
+                    {"userId", f.id},
+                    {"username", f.username},
+                    {"displayName", f.displayName}
+                });
             }
-            jFriends[std::to_string(acctId)] = std::move(arr);
+            if (!root.contains(keyUserId) || !root[keyUserId].is_object()) root[keyUserId] = json::object();
+            root[keyUserId]["friends"] = std::move(arr);
         }
 
-        json jUnfriended = json::object();
         for (const auto &[acctId, list]: g_unfriendedFriends) {
+            auto itUser = accountIdToUserId.find(acctId);
+            if (itUser == accountIdToUserId.end() || itUser->second.empty()) {
+                LOG_INFO("Skipping save for unfriended of accountId without userId: " + std::to_string(acctId));
+                continue;
+            }
+            const std::string &keyUserId = itUser->second;
             json arr = json::array();
             for (const auto &f: list) {
-                arr.push_back({{"id", f.id}, {"username", f.username}, {"displayName", f.displayName}});
+                arr.push_back({
+                    {"userId", f.id},
+                    {"username", f.username},
+                    {"displayName", f.displayName}
+                });
             }
-            jUnfriended[std::to_string(acctId)] = std::move(arr);
+            if (!root.contains(keyUserId) || !root[keyUserId].is_object()) root[keyUserId] = json::object();
+            root[keyUserId]["unfriended"] = std::move(arr);
         }
-
-        json j;
-        j["friends"] = std::move(jFriends);
-        j["unfriended"] = std::move(jUnfriended);
-
+        json j = std::move(root);
         std::ofstream out{path};
         if (!out.is_open()) {
             LOG_ERROR("Could not open '" + path + "' for writing");

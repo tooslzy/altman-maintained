@@ -515,15 +515,55 @@ void RenderFriendsTab()
             }
             PopID();
 
-            PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.4f, 0.4f, 1.f));
-            for (const auto &uf : g_unfriended)
+            for (size_t i = 0; i < g_unfriended.size(); ++i)
             {
+                const auto &uf = g_unfriended[i];
                 string name = uf.displayName.empty() || uf.displayName == uf.username
                                   ? uf.username
                                   : uf.displayName + " (" + uf.username + ")";
+                PushID(static_cast<int>(i));
+                PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.4f, 0.4f, 1.f));
                 TextUnformatted(name.c_str());
+                PopStyleColor();
+                if (BeginPopupContextItem("FriendsLostEntryMenu"))
+                {
+                    if (MenuItem("Copy Display Name"))
+                    {
+                        SetClipboardText(uf.displayName.c_str());
+                    }
+                    if (MenuItem("Copy Username"))
+                    {
+                        SetClipboardText(uf.username.c_str());
+                    }
+                    if (MenuItem("Copy User ID"))
+                    {
+                        string idStr = to_string(uf.id);
+                        SetClipboardText(idStr.c_str());
+                    }
+                    Separator();
+                    PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.85f, 0.4f, 1.f));
+                    if (MenuItem("Add Friend"))
+                    {
+                        uint64_t targetUserId = uf.id;
+                        string cookieCopy = acct.cookie;
+                        Threading::newThread([targetUserId, cookieCopy]()
+                                             {
+                            string resp;
+                            bool ok = Roblox::sendFriendRequest(to_string(targetUserId), cookieCopy, &resp);
+                            if (ok) {
+                                LOG_INFO("Friend request sent");
+                                cerr << "Friend request response: " << resp << "\n";
+                            } else {
+                                cerr << "Friend request failed: " << resp << "\n";
+                                LOG_INFO("Friend request failed");
+                            }
+                        });
+                    }
+                    PopStyleColor();
+                    EndPopup();
+                }
+                PopID();
             }
-            PopStyleColor();
         }
     }
     EndChild();
