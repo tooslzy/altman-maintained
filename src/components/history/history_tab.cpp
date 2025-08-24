@@ -17,6 +17,7 @@
 #include "log_types.h"
 #include "log_parser.h"
 #include "history_utils.h"
+#include "core/time_utils.h"
 
 #include "system/threading.h"
 #include "system/launcher.hpp"
@@ -26,6 +27,8 @@
 #include "../../ui.h"
 #include "../data.h"
 #include "../accounts/accounts_join_ui.h"
+#include "../context_menus.h"
+#include "../../utils/core/account_utils.h"
 #include <windows.h>
 
 namespace fs = filesystem;
@@ -37,6 +40,7 @@ static int g_selected_log_idx = -1;
 static auto ICON_REFRESH = "\xEF\x8B\xB1 ";
 static auto ICON_TRASH = "\xEF\x87\xB8 ";
 static auto ICON_FOLDER = "\xEF\x81\xBB ";
+static auto ICON_JOIN = "\xEF\x8B\xB6 ";
 
 static vector<LogInfo> g_logs;
 static atomic_bool g_logs_loading{false};
@@ -183,7 +187,6 @@ static void clearLogs() {
 		lock_guard<mutex> lk(g_logs_mtx);
 		g_logs.clear();
 		g_selected_log_idx = -1;
-		Data::SaveLogHistory(g_logs);
 	}
 }
 
@@ -217,12 +220,9 @@ static void refreshLogs() {
 			return b.timestamp < a.timestamp;
 		}); {
 			lock_guard<mutex> lk(g_logs_mtx);
-			// Clear existing logs and replace with newly parsed logs
 			g_logs.clear();
-			g_logs = tempLogs;  // Replace with new logs
+			g_logs = tempLogs;
 			g_selected_log_idx = -1;
-			// Still save the logs for this session, but they'll be rebuilt next time
-			Data::SaveLogHistory(g_logs);
 		}
 
 		LOG_INFO("Log scan complete. Recreated logs cache with " + std::to_string(tempLogs.size()) + " logs.");
@@ -273,9 +273,22 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 	ImGuiTableFlags tableFlags = ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_RowBg |
 	                             ImGuiTableFlags_SizingFixedFit;
 
-	PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(0.0f, 4.0f));
-	if (BeginTable("HistoryInfoTable", 2, tableFlags)) {
-		TableSetupColumn("##historylabel", ImGuiTableColumnFlags_WidthFixed, 110.f);
+    PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(0.0f, 4.0f));
+    // Compute label column width for the summary table based on visible rows
+    float historyLabelColumnWidth = GetFontSize() * 6.875f; // sensible minimum
+    {
+        vector<const char*> labels;
+        labels.push_back("File:");
+        labels.push_back("Time:");
+        labels.push_back("Version:");
+        labels.push_back("Channel:");
+        labels.push_back("User ID:");
+        float mx = 0.0f;
+        for (const char* lbl : labels) mx = (std::max)(mx, CalcTextSize(lbl).x);
+        historyLabelColumnWidth = (std::max)(historyLabelColumnWidth, mx + GetFontSize() + GetFontSize());
+    }
+    if (BeginTable("HistoryInfoTable", 2, tableFlags)) {
+        TableSetupColumn("##historylabel", ImGuiTableColumnFlags_WidthFixed, historyLabelColumnWidth); // adaptive
 		TableSetupColumn("##historyvalue", ImGuiTableColumnFlags_WidthStretch);
 
 		auto addRow = [&](const char *label, const string &value) {
@@ -323,8 +336,11 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 			EndPopup();
 		}
 
-		string timeStr = friendlyTimestamp(logInfo.timestamp);
-		addRow("Time:", timeStr);
+        string timeStr = friendlyTimestamp(logInfo.timestamp);
+        // Add relative in info panel for richer context
+        time_t tAbs = parseIsoTimestamp(logInfo.timestamp);
+        string timeWithRel = (tAbs ? formatAbsoluteWithRelativeLocal(tAbs) : timeStr);
+        addRow("Time:", timeWithRel);
 		addRow("Version:", logInfo.version);
 		addRow("Channel:", logInfo.channel);
 		addRow("User ID:", logInfo.userId);
@@ -385,8 +401,21 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 				ImGui::PopStyleColor(3);
 				
 				// Using a table for aligned fields
-				if (BeginTable("InstanceDetailsTable", 2, ImGuiTableFlags_BordersInnerV)) {
-					TableSetupColumn("##field", ImGuiTableColumnFlags_WidthFixed, 120.0f); // Increased width to prevent Universe ID from being cut off
+                    if (BeginTable("InstanceDetailsTable", 2, ImGuiTableFlags_BordersInnerV)) {
+                        // Compute label width for per-instance rows shown below
+                        float instLabelWidth = GetFontSize() * 7.5f;
+                        {
+                            vector<const char*> ilabels;
+                            if (!session.placeId.empty()) ilabels.push_back("Place ID:");
+                            if (!session.jobId.empty()) ilabels.push_back("Job ID:");
+                            if (!session.universeId.empty()) ilabels.push_back("Universe ID:");
+                            if (!session.serverIp.empty()) ilabels.push_back("Server IP:");
+                            if (!session.serverPort.empty()) ilabels.push_back("Server Port:");
+                            float mx = 0.0f;
+                            for (const char* lbl : ilabels) mx = (std::max)(mx, CalcTextSize(lbl).x);
+                            instLabelWidth = (std::max)(instLabelWidth, mx + GetFontSize() + GetFontSize());
+                        }
+                        TableSetupColumn("##field", ImGuiTableColumnFlags_WidthFixed, instLabelWidth);
 					TableSetupColumn("##value", ImGuiTableColumnFlags_WidthStretch);
 					
 					// Place ID
@@ -449,35 +478,54 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 						PopID();
 					}
 					
-					// Server IP:Port
-					if (!session.serverIp.empty()) {
-						TableNextRow();
-						TableSetColumnIndex(0);
-						TextUnformatted("Server IP:");
-						
-						TableSetColumnIndex(1);
-						string serverStr = session.serverIp + ":" + session.serverPort;
-						PushID("ServerInfo");
-						Indent(10.0f); // Add padding before the value
-						TextWrapped("%s", serverStr.c_str());
-						Unindent(10.0f);
-						if (BeginPopupContextItem("CopyServerInfo")) {
-							if (MenuItem("Copy")) {
-								SetClipboardText(serverStr.c_str());
-							}
-							EndPopup();
-						}
-						PopID();
-					}
+                    // Server IP
+                    if (!session.serverIp.empty()) {
+                        TableNextRow();
+                        TableSetColumnIndex(0);
+                        TextUnformatted("Server IP:");
+
+                        TableSetColumnIndex(1);
+                        PushID("ServerIP");
+                        Indent(10.0f);
+                        TextWrapped("%s", session.serverIp.c_str());
+                        Unindent(10.0f);
+                        if (BeginPopupContextItem("CopyServerIP")) {
+                            if (MenuItem("Copy")) {
+                                SetClipboardText(session.serverIp.c_str());
+                            }
+                            EndPopup();
+                        }
+                        PopID();
+                    }
+
+                    // Server Port
+                    if (!session.serverPort.empty()) {
+                        TableNextRow();
+                        TableSetColumnIndex(0);
+                        TextUnformatted("Server Port:");
+
+                        TableSetColumnIndex(1);
+                        PushID("ServerPort");
+                        Indent(10.0f);
+                        TextWrapped("%s", session.serverPort.c_str());
+                        Unindent(10.0f);
+                        if (BeginPopupContextItem("CopyServerPort")) {
+                            if (MenuItem("Copy")) {
+                                SetClipboardText(session.serverPort.c_str());
+                            }
+                            EndPopup();
+                        }
+                        PopID();
+                    }
 					
 					EndTable();
 				}
 				
 				// Launch button for this specific instance
 				bool canLaunch = !session.placeId.empty() && !session.jobId.empty() && !g_selectedAccountIds.empty();
-				if (canLaunch) {
+                if (canLaunch) {
 					Spacing();
-					if (Button(("Launch this instance##" + to_string(i)).c_str())) {
+                    if (Button((string(ICON_JOIN) + " Launch Instance##" + to_string(i)).c_str())) {
 						uint64_t place_id_val = 0;
 						try {
 							place_id_val = stoull(session.placeId);
@@ -485,12 +533,12 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 
 						if (place_id_val > 0) {
 							vector<pair<int, string> > accounts;
-							for (int id: g_selectedAccountIds) {
-									auto it = find_if(g_accounts.begin(), g_accounts.end(),
-													[&](const AccountData &a) { return a.id == id; });
-									if (it != g_accounts.end() && it->status != "Banned" && it->status != "Warned" && it->status != "Terminated")
-											accounts.emplace_back(it->id, it->cookie);
-							}
+			    for (int id: g_selectedAccountIds) {
+				    auto it = find_if(g_accounts.begin(), g_accounts.end(),
+						    [&](const AccountData &a) { return a.id == id; });
+				    if (it != g_accounts.end() && AccountFilters::IsAccountUsable(*it))
+					    accounts.emplace_back(it->id, it->cookie);
+			    }
 							if (!accounts.empty()) {
 								LOG_INFO("Launching game instance from history...");
 								thread([place_id_val, jobId = session.jobId, accounts]() {
@@ -507,40 +555,34 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 					
 					// Context menu for the launch button
 					if (BeginPopupContextItem(("LaunchButtonCtx##" + to_string(i)).c_str(), ImGuiPopupFlags_MouseButtonRight)) {
-						if (MenuItem("Fill Join Options")) {
-							uint64_t place_id_val = 0;
-							try {
-								place_id_val = stoull(session.placeId);
-								FillJoinOptions(place_id_val, session.jobId);
-							} catch (...) {
-								LOG_INFO("Invalid Place ID in instance.");
+						uint64_t pid = 0;
+						try { pid = stoull(session.placeId); } catch (...) { pid = 0; }
+						StandardJoinMenuParams menu{};
+						menu.placeId = pid;
+						// universeId is a string in logs; try to parse
+						try { menu.universeId = session.universeId.empty() ? 0ULL : stoull(session.universeId); } catch (...) { menu.universeId = 0; }
+						menu.jobId = session.jobId;
+						menu.onLaunchGame = [pid]() {
+							if (pid == 0 || g_selectedAccountIds.empty()) return;
+							vector<pair<int, string>> accounts;
+							for (int id: g_selectedAccountIds) {
+								auto it = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) { return a.id == id && AccountFilters::IsAccountUsable(a); });
+								if (it != g_accounts.end()) accounts.emplace_back(it->id, it->cookie);
 							}
-						}
-						if (MenuItem("Copy Place ID")) {
-							SetClipboardText(session.placeId.c_str());
-						}
-						if (MenuItem("Copy Job ID")) {
-							SetClipboardText(session.jobId.c_str());
-						}
-						if (BeginMenu("Copy Launch Method")) {
-							if (MenuItem("Browser Link")) {
-								string link = "https://www.roblox.com/games/start?placeId=" + session.placeId +
-											"&gameInstanceId=" + session.jobId;
-								SetClipboardText(link.c_str());
+							if (!accounts.empty()) thread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); }).detach();
+						};
+						menu.onLaunchInstance = [pid, jid = session.jobId]() {
+							if (pid == 0 || jid.empty() || g_selectedAccountIds.empty()) return;
+							vector<pair<int, string>> accounts;
+							for (int id: g_selectedAccountIds) {
+								auto it = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) { return a.id == id && AccountFilters::IsAccountUsable(a); });
+								if (it != g_accounts.end()) accounts.emplace_back(it->id, it->cookie);
 							}
-							char buf[256];
-							snprintf(buf, sizeof(buf), "roblox://placeId=%s&gameInstanceId=%s",
-									session.placeId.c_str(), session.jobId.c_str());
-							if (MenuItem("Deep Link")) SetClipboardText(buf);
-							string js = "Roblox.GameLauncher.joinGameInstance(" + session.placeId + ", \"" +
-										session.jobId + "\")";
-							if (MenuItem("JavaScript")) SetClipboardText(js.c_str());
-							string luau =
-									"game:GetService(\"TeleportService\"):TeleportToPlaceInstance(" + session.placeId +
-									", \"" + session.jobId + "\")";
-							if (MenuItem("ROBLOX Luau")) SetClipboardText(luau.c_str());
-							ImGui::EndMenu();
-						}
+							if (!accounts.empty()) thread([pid, jid, accounts]() { launchRobloxSequential(pid, jid, accounts); }).detach();
+						};
+						menu.onFillGame = [pid]() { if (pid) FillJoinOptions(pid, ""); };
+						menu.onFillInstance = [pid, jid = session.jobId]() { if (pid) FillJoinOptions(pid, jid); };
+						RenderStandardJoinMenu(menu);
 						EndPopup();
 					}
 				}
@@ -622,7 +664,7 @@ void RenderHistoryTab() {
 	if (detailWidth <= 0)
 		detailWidth = GetContentRegionAvail().x - listWidth - GetStyle().ItemSpacing.x;
 	if (listWidth <= 0)
-		listWidth = 150; // Reduced minimum width from 200 to 150
+		listWidth = GetFontSize() * 9.375f; // ~150px at 16px
 
 	BeginChild("##HistoryList", ImVec2(listWidth, 0), true); {
 		lock_guard<mutex> lk(g_logs_mtx);

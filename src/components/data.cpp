@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <filesystem>
 #include <unordered_map>
+#include <unordered_set>
 #include <windows.h>
 #include <dpapi.h>
 
@@ -134,6 +135,9 @@ namespace Data {
             account.banExpiry = item.value("banExpiry", 0);
             account.note = item.value("note", "");
             account.isFavorite = item.value("isFavorite", false);
+            account.lastLocation = item.value("lastLocation", "");
+            account.placeId = item.value("placeId", 0ULL);
+            account.jobId = item.value("jobId", "");
 
             if (item.contains("encryptedCookie")) {
                 string b64EncryptedCookie = item.value("encryptedCookie", "");
@@ -201,7 +205,10 @@ namespace Data {
                 {"banExpiry", account.banExpiry},
                 {"note", account.note},
                 {"encryptedCookie", b64EncryptedCookie},
-                {"isFavorite", account.isFavorite}
+                {"isFavorite", account.isFavorite},
+                {"lastLocation", account.lastLocation},
+                {"placeId", account.placeId},
+                {"jobId", account.jobId}
             });
         }
         out << dataArray.dump(4);
@@ -320,8 +327,12 @@ namespace Data {
             auto parseList = [](const json &arr) {
                 std::vector<FriendInfo> out;
                 for (auto &f: arr) {
+                    if (!f.is_object()) {
+                        LOG_INFO("Skipping malformed friend entry (expected object)");
+                        continue;
+                    }
                     FriendInfo fi;
-                    fi.id = f.value("id", 0ULL);
+                    fi.id = f.value("userId", 0ULL);
                     fi.username = f.value("username", "");
                     fi.displayName = f.value("displayName", "");
                     out.push_back(std::move(fi));
@@ -329,22 +340,53 @@ namespace Data {
                 return out;
             };
 
-            if (j.contains("friends") || j.contains("unfriended")) {
-                for (auto it = j["friends"].begin(); it != j["friends"].end(); ++it) {
-                    int acctId = std::stoi(it.key());
-                    g_accountFriends[acctId] = parseList(it.value());
+            // New format: root object keyed by account userId -> { friends: [...], unfriended: [...] }
+            if (!j.is_object()) {
+                LOG_ERROR("Invalid friends.json format: expected root object keyed by userId");
+                LOG_INFO("Starting with empty friend lists");
+                return;
+            }
+
+            std::unordered_map<std::string, int> userIdToAccountId;
+            for (const auto &a : g_accounts) {
+                if (!a.userId.empty()) userIdToAccountId[a.userId] = a.id;
+            }
+
+            for (auto it = j.begin(); it != j.end(); ++it) {
+                const std::string keyUserId = it.key();
+                auto itMap = userIdToAccountId.find(keyUserId);
+                if (itMap == userIdToAccountId.end()) {
+                    LOG_INFO("Skipping data for unknown userId key: " + keyUserId);
+                    continue;
                 }
-                if (j.contains("unfriended")) {
-                    for (auto it = j["unfriended"].begin(); it != j["unfriended"].end(); ++it) {
-                        int acctId = std::stoi(it.key());
-                        g_unfriendedFriends[acctId] = parseList(it.value());
-                    }
+                if (!it.value().is_object()) {
+                    LOG_INFO("Skipping malformed entry for userId key (expected object): " + keyUserId);
+                    continue;
                 }
-            } else {
-                for (auto it = j.begin(); it != j.end(); ++it) {
-                    int acctId = std::stoi(it.key());
-                    g_accountFriends[acctId] = parseList(it.value());
+                int acctId = itMap->second;
+                const auto &acctObj = it.value();
+                std::vector<FriendInfo> friends;
+                if (acctObj.contains("friends") && acctObj["friends"].is_array()) {
+                    friends = parseList(acctObj["friends"]);
                 }
+                std::vector<FriendInfo> unf;
+                if (acctObj.contains("unfriended") && acctObj["unfriended"].is_array()) {
+                    unf = parseList(acctObj["unfriended"]);
+                }
+
+                std::unordered_set<uint64_t> friendIds;
+                friendIds.reserve(friends.size());
+                for (const auto &f : friends) friendIds.insert(f.id);
+                std::unordered_set<uint64_t> seen;
+                std::vector<FriendInfo> filtered;
+                filtered.reserve(unf.size());
+                for (auto &u : unf) {
+                    if (friendIds.find(u.id) != friendIds.end()) continue;
+                    if (seen.insert(u.id).second) filtered.push_back(std::move(u));
+                }
+
+                g_accountFriends[acctId] = std::move(friends);
+                g_unfriendedFriends[acctId] = std::move(filtered);
             }
 
             LOG_INFO("Loaded friend data for " + std::to_string(g_accountFriends.size()) + " accounts");
@@ -355,28 +397,50 @@ namespace Data {
 
     void SaveFriends(const std::string &filename) {
         std::string path = MakePath(filename);
-        json jFriends = json::object();
+        json root = json::object();
+        std::unordered_map<int, std::string> accountIdToUserId;
+        for (const auto &a : g_accounts) {
+            if (!a.userId.empty()) accountIdToUserId[a.id] = a.userId;
+        }
+
         for (const auto &[acctId, friends]: g_accountFriends) {
+            auto itUser = accountIdToUserId.find(acctId);
+            if (itUser == accountIdToUserId.end() || itUser->second.empty()) {
+                LOG_INFO("Skipping save for accountId without userId: " + std::to_string(acctId));
+                continue;
+            }
+            const std::string &keyUserId = itUser->second;
             json arr = json::array();
             for (const auto &f: friends) {
-                arr.push_back({{"id", f.id}, {"username", f.username}, {"displayName", f.displayName}});
+                arr.push_back({
+                    {"userId", f.id},
+                    {"username", f.username},
+                    {"displayName", f.displayName}
+                });
             }
-            jFriends[std::to_string(acctId)] = std::move(arr);
+            if (!root.contains(keyUserId) || !root[keyUserId].is_object()) root[keyUserId] = json::object();
+            root[keyUserId]["friends"] = std::move(arr);
         }
 
-        json jUnfriended = json::object();
         for (const auto &[acctId, list]: g_unfriendedFriends) {
+            auto itUser = accountIdToUserId.find(acctId);
+            if (itUser == accountIdToUserId.end() || itUser->second.empty()) {
+                LOG_INFO("Skipping save for unfriended of accountId without userId: " + std::to_string(acctId));
+                continue;
+            }
+            const std::string &keyUserId = itUser->second;
             json arr = json::array();
             for (const auto &f: list) {
-                arr.push_back({{"id", f.id}, {"username", f.username}, {"displayName", f.displayName}});
+                arr.push_back({
+                    {"userId", f.id},
+                    {"username", f.username},
+                    {"displayName", f.displayName}
+                });
             }
-            jUnfriended[std::to_string(acctId)] = std::move(arr);
+            if (!root.contains(keyUserId) || !root[keyUserId].is_object()) root[keyUserId] = json::object();
+            root[keyUserId]["unfriended"] = std::move(arr);
         }
-
-        json j;
-        j["friends"] = std::move(jFriends);
-        j["unfriended"] = std::move(jUnfriended);
-
+        json j = std::move(root);
         std::ofstream out{path};
         if (!out.is_open()) {
             LOG_ERROR("Could not open '" + path + "' for writing");
@@ -386,117 +450,6 @@ namespace Data {
         LOG_INFO("Saved friend data for " + std::to_string(g_accountFriends.size()) + " accounts");
     }
 
-    std::vector<LogInfo> LoadLogHistory(const std::string &filename) {
-        std::string path = MakePath(filename);
-        std::ifstream fin{path};
-        std::vector<LogInfo> logs;
-        if (!fin.is_open()) {
-            LOG_INFO("No " + path + ", starting with empty log history");
-            return logs;
-        }
-
-        try {
-            json arr;
-            fin >> arr;
-            for (auto &j: arr) {
-                LogInfo info;
-                info.fileName = j.value("fileName", "");
-                info.fullPath = j.value("fullPath", "");
-                info.timestamp = j.value("timestamp", "");
-                info.version = j.value("version", "");
-                info.channel = j.value("channel", "");
-                info.userId = j.value("userId", "");
-                
-                // Load sessions if they exist
-                if (j.contains("sessions") && j["sessions"].is_array()) {
-                    for (auto &sessionJson : j["sessions"]) {
-                        GameSession session;
-                        session.timestamp = sessionJson.value("timestamp", "");
-                        session.jobId = sessionJson.value("jobId", "");
-                        session.placeId = sessionJson.value("placeId", "");
-                        session.universeId = sessionJson.value("universeId", "");
-                        session.serverIp = sessionJson.value("serverIp", "");
-                        session.serverPort = sessionJson.value("serverPort", "");
-                        info.sessions.push_back(session);
-                    }
-                }
-                
-                // For backward compatibility
-                info.joinTime = j.value("joinTime", "");
-                info.jobId = j.value("jobId", "");
-                info.placeId = j.value("placeId", "");
-                info.universeId = j.value("universeId", "");
-                info.serverIp = j.value("serverIp", "");
-                info.serverPort = j.value("serverPort", "");
-                info.outputLines = j.value("outputLines", std::vector<std::string>{});
-                
-                // If we have backward compatibility data but no sessions, create a synthetic session
-                if (info.sessions.empty() && (!info.jobId.empty() || !info.placeId.empty())) {
-                    GameSession backwardCompatSession;
-                    backwardCompatSession.timestamp = info.timestamp;
-                    backwardCompatSession.jobId = info.jobId;
-                    backwardCompatSession.placeId = info.placeId;
-                    backwardCompatSession.universeId = info.universeId;
-                    backwardCompatSession.serverIp = info.serverIp;
-                    backwardCompatSession.serverPort = info.serverPort;
-                    info.sessions.push_back(backwardCompatSession);
-                }
-                
-                logs.push_back(std::move(info));
-            }
-            LOG_INFO("Loaded " + std::to_string(logs.size()) + " log entries");
-        } catch (const std::exception &e) {
-            LOG_ERROR("Failed to parse " + filename + ": " + e.what());
-        }
-
-        return logs;
-    }
-
-    void SaveLogHistory(const std::vector<LogInfo> &logs, const std::string &filename) {
-        std::string path = MakePath(filename);
-        std::ofstream out{path};
-        if (!out.is_open()) {
-            LOG_ERROR("Could not open '" + path + "' for writing");
-            return;
-        }
-
-        json arr = json::array();
-        for (const auto &log: logs) {
-            // Convert sessions to JSON array
-            json sessionsArr = json::array();
-            for (const auto &session : log.sessions) {
-                sessionsArr.push_back({
-                    {"timestamp", session.timestamp},
-                    {"jobId", session.jobId},
-                    {"placeId", session.placeId},
-                    {"universeId", session.universeId},
-                    {"serverIp", session.serverIp},
-                    {"serverPort", session.serverPort}
-                });
-            }
-            
-            arr.push_back({
-                {"fileName", log.fileName},
-                {"fullPath", log.fullPath},
-                {"timestamp", log.timestamp},
-                {"version", log.version},
-                {"channel", log.channel},
-                {"userId", log.userId},
-                {"sessions", sessionsArr},
-                // For backward compatibility
-                {"joinTime", log.joinTime},
-                {"jobId", log.jobId},
-                {"placeId", log.placeId},
-                {"universeId", log.universeId},
-                {"serverIp", log.serverIp},
-                {"serverPort", log.serverPort},
-                {"outputLines", log.outputLines}
-            });
-        }
-
-        out << arr.dump(4);
-        LOG_INFO("Saved " + std::to_string(logs.size()) + " log entries");
-    }
 
     std::string StorageFilePath(const std::string &filename) {
         return MakePath(filename);

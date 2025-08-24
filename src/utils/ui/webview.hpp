@@ -10,6 +10,7 @@
 #include <atomic>
 #include <chrono>
 #include <filesystem>
+#include <cwchar>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -37,14 +38,42 @@ class WebViewWindow {
 	std::wstring initialUrl_;
 	std::wstring windowTitle_;
 	std::wstring cookieValue_;
+	std::wstring userDataFolder_;
 
 public:
 	WebViewWindow(std::wstring url,
-	              std::wstring windowTitle,
-	              std::wstring cookie = L"")
+				  std::wstring windowTitle,
+				  std::wstring cookie = L"",
+				  std::wstring userId = L"")
 		: initialUrl_(std::move(url)),
 		  windowTitle_(std::move(windowTitle)),
 		  cookieValue_(std::move(cookie)) {
+		// Derive per-user data folder using userId when provided; otherwise fall back to app-wide folder.
+		if (!userId.empty()) {
+			std::wstring sanitized;
+			sanitized.reserve(userId.size());
+			for (wchar_t ch : userId) {
+				if ((ch >= L'0' && ch <= L'9') || (ch >= L'a' && ch <= L'z') || (ch >= L'A' && ch <= L'Z') || ch == L'_')
+					sanitized.push_back(ch);
+				else
+					sanitized.push_back(L'_');
+			}
+			std::filesystem::path p = std::filesystem::path(kUserDataFolder) / (L"u_" + sanitized);
+			std::filesystem::create_directories(p);
+			userDataFolder_ = p.wstring();
+		} else {
+			if (!cookieValue_.empty()) {
+				// Stable per-cookie folder using a hash
+				size_t h = std::hash<std::wstring>{}(cookieValue_);
+				wchar_t hashHex[17]{};
+				swprintf(hashHex, 17, L"%016llX", static_cast<unsigned long long>(h));
+				std::filesystem::path p = std::filesystem::path(kUserDataFolder) / (L"c_" + std::wstring(hashHex));
+				std::filesystem::create_directories(p);
+				userDataFolder_ = p.wstring();
+			} else {
+				userDataFolder_ = kUserDataFolder;
+			}
+		}
 	}
 
 	~WebViewWindow() {
@@ -54,11 +83,6 @@ public:
 	bool create() {
 		HINSTANCE hInstance = GetModuleHandleW(nullptr);
 
-		// Enable per‑monitor DPI awareness once.
-		static std::once_flag dpiFlag;
-		std::call_once(dpiFlag, [] {
-			SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-		});
 
 		// Register window class once.
 		static std::once_flag clsFlag;
@@ -108,7 +132,7 @@ private:
 		ComPtr<ICoreWebView2EnvironmentOptions> envOpts;
 
 		CreateCoreWebView2EnvironmentWithOptions(
-			nullptr /* Edge runtime */, kUserDataFolder.c_str(), envOpts.Get(),
+			nullptr /* Edge runtime */, userDataFolder_.c_str(), envOpts.Get(),
 			Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
 				[this](HRESULT hrEnv, ICoreWebView2Environment *env) -> HRESULT {
 					if (FAILED(hrEnv)) return hrEnv;
@@ -207,6 +231,8 @@ private:
 				RECT *nr = reinterpret_cast<RECT *>(l);
 				SetWindowPos(h, nullptr, nr->left, nr->top, nr->right - nr->left,
 				             nr->bottom - nr->top, SWP_NOZORDER | SWP_NOACTIVATE);
+					// Update WebView bounds and rasterization scale for new DPI
+					self->resize();
 				return 0;
 			}
 			case WM_DESTROY:
@@ -233,9 +259,10 @@ namespace {
 
 inline void LaunchWebview(const std::wstring &url,
                           const std::wstring &windowName = L"Altman Webview",
-                          const std::wstring &cookie = L"") {
-	std::thread([url, windowName, cookie] {
-		auto win = std::make_unique<WebViewWindow>(url, windowName, cookie);
+						  const std::wstring &cookie = L"",
+						  const std::wstring &userId = L"") {
+	std::thread([url, windowName, cookie, userId] {
+		auto win = std::make_unique<WebViewWindow>(url, windowName, cookie, userId);
 		if (win->create()) win->messageLoop();
 	}).detach();
 }
@@ -243,6 +270,7 @@ inline void LaunchWebview(const std::wstring &url,
 // UTF‑8 convenience overload
 inline void LaunchWebview(const std::string &url,
                           const std::string &windowName = "Altman Webview",
-                          const std::string &cookie = "") {
-	LaunchWebview(widen(url), widen(windowName), widen(cookie));
+						  const std::string &cookie = "",
+						  const std::string &userId = "") {
+	LaunchWebview(widen(url), widen(windowName), widen(cookie), widen(userId));
 }

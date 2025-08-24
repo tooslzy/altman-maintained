@@ -14,6 +14,7 @@
 
 #include "main_thread.h"
 #include "webview.hpp"
+#include "../webview_helpers.h"
 
 #include "system/threading.h"
 #include "network/roblox.h"
@@ -306,8 +307,9 @@ void RenderAccountsTable(vector<AccountData> &accounts_to_display, const char *t
 		float openWidth = CalcTextSize("Open").x + style.FramePadding.x * 2.0f;
 		float cancelWidth = CalcTextSize("Cancel").x + style.FramePadding.x * 2.0f;
 		float inputWidth = GetContentRegionAvail().x - openWidth - cancelWidth - style.ItemSpacing.x;
-		if (inputWidth < 100.0f)
-			inputWidth = 100.0f;
+		float minField = GetFontSize() * 6.25f; // ~100px at 16px
+		if (inputWidth < minField)
+			inputWidth = minField;
 		PushItemWidth(inputWidth);
 		InputTextWithHint("##WebviewUrl", "Enter URL", s_urlBuffer, sizeof(s_urlBuffer));
 		PopItemWidth();
@@ -319,8 +321,7 @@ void RenderAccountsTable(vector<AccountData> &accounts_to_display, const char *t
 			if (it != g_accounts.end())
 			{
 				string url = s_urlBuffer;
-				Threading::newThread([acc = *it, url]()
-									 { LaunchWebview(url, acc.username + " - " + acc.userId, acc.cookie); });
+				Threading::newThread([acc = *it, url]() { LaunchWebview(url, acc); });
 			}
 			s_urlBuffer[0] = '\0';
 			CloseCurrentPopup();

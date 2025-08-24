@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "../components.h"
+#include "../context_menus.h"
 #include "system/launcher.hpp"
 #include "network/roblox.h"
 #include "core/status.h"
@@ -19,9 +20,15 @@
 #include "../../ui.h"
 #include "../servers/servers_utils.h"
 #include "../accounts/accounts_join_ui.h"
+#include "../../utils/core/account_utils.h"
 
 using namespace ImGui;
 using namespace std;
+
+template <typename Container, typename Pred>
+static inline void erase_if_local(Container &c, Pred p) {
+    c.erase(remove_if(c.begin(), c.end(), p), c.end());
+}
 
 static char searchBuffer[64] = "";
 static int selectedIndex = -1;
@@ -105,8 +112,9 @@ static void RenderGameSearch() {
 
     float comboWidth = CalcTextSize("Players (Low-High)").x + style.FramePadding.x * 4.0f;
     float inputWidth = GetContentRegionAvail().x - searchButtonWidth - clearButtonWidth - comboWidth - style.ItemSpacing.x * 3;
-    if (inputWidth < 100.0f)
-        inputWidth = 100.0f;
+    float minField = GetFontSize() * 6.25f; // ~100px at 16px base
+    if (inputWidth < minField)
+        inputWidth = minField;
     PushItemWidth(inputWidth);
     InputTextWithHint("##game_search", "Search games", searchBuffer, sizeof(searchBuffer));
     PopItemWidth();
@@ -114,8 +122,8 @@ static void RenderGameSearch() {
     if (Button(" \xEF\x80\x82  Search ", ImVec2(searchButtonWidth, 0)) && searchBuffer[0] != '\0') {
         selectedIndex = -1;
         originalGamesList = Roblox::searchGames(searchBuffer);
-        erase_if(originalGamesList, [&](const GameInfo &g) {
-            return favoriteGameIds.contains(g.universeId);
+        erase_if_local(originalGamesList, [&](const GameInfo &g) {
+            return favoriteGameIds.count(g.universeId) != 0;
         });
         SortGamesList();
         gameDetailCache.clear();
@@ -151,15 +159,24 @@ static void RenderFavoritesList(float listWidth, float availableHeight) {
             }
 
             if (BeginPopupContextItem("FavoriteContext")) {
-                if (MenuItem("Fill Join Options")) {
-                    FillJoinOptions(game.placeId, "");
+                {
+                    StandardJoinMenuParams menu{};
+                    menu.placeId = game.placeId;
+                    menu.universeId = game.universeId;
+                    menu.jobId = ""; // games have no instance context here
+                    menu.onLaunchGame = [pid = game.placeId]() {
+                        if (g_selectedAccountIds.empty()) return;
+                        vector<pair<int, string>> accounts;
+                        for (int id: g_selectedAccountIds) {
+                            auto it = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) { return a.id == id && AccountFilters::IsAccountUsable(a); });
+                            if (it != g_accounts.end()) accounts.emplace_back(it->id, it->cookie);
+                        }
+                        if (!accounts.empty()) thread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); }).detach();
+                    };
+                    menu.onFillGame = [pid = game.placeId]() { FillJoinOptions(pid, ""); };
+                    RenderStandardJoinMenu(menu);
                 }
-                if (MenuItem("Copy Place ID")) {
-                    SetClipboardText(to_string(game.placeId).c_str());
-                }
-                if (MenuItem("Copy Universe ID")) {
-                    SetClipboardText(to_string(game.universeId).c_str());
-                }
+                // Universe ID copy is now included in the standardized menu
                 
                 if (BeginMenu("Rename")) {
                     if (renamingUniverseId != game.universeId) {
@@ -201,18 +218,18 @@ static void RenderFavoritesList(float listWidth, float availableHeight) {
                 if (MenuItem("Unfavorite")) {
                     uint64_t universeIdToRemove = game.universeId;
                     favoriteGameIds.erase(universeIdToRemove);
-                    erase_if(favoriteGamesList,
-                             [&](const GameInfo &gameInfo) {
-                                 return gameInfo.universeId == universeIdToRemove;
-                             });
+                    erase_if_local(favoriteGamesList,
+                                   [&](const GameInfo &gameInfo) {
+                                       return gameInfo.universeId == universeIdToRemove;
+                                   });
 
                     if (selectedIndex == -1000 - index)
                         selectedIndex = -1;
 
-                    erase_if(g_favorites,
-                             [&](const FavoriteGame &favoriteGame) {
-                                 return favoriteGame.universeId == universeIdToRemove;
-                             });
+                    erase_if_local(g_favorites,
+                                   [&](const FavoriteGame &favoriteGame) {
+                                       return favoriteGame.universeId == universeIdToRemove;
+                                   });
                     Data::SaveFavorites();
                     CloseCurrentPopup();
                 }
@@ -227,7 +244,7 @@ static void RenderFavoritesList(float listWidth, float availableHeight) {
 static void RenderSearchResultsList(float listWidth, float availableHeight) {
     for (int index = 0; index < static_cast<int>(gamesList.size()); ++index) {
         const auto &game = gamesList[index];
-        if (favoriteGameIds.contains(game.universeId))
+    if (favoriteGameIds.count(game.universeId) != 0)
             continue;
         PushID(static_cast<int>(game.universeId));
 
@@ -239,11 +256,25 @@ static void RenderSearchResultsList(float listWidth, float availableHeight) {
             SetTooltip("Players: %s", formatWithCommas(game.playerCount).c_str());
 
         if (BeginPopupContextItem("GameContext")) {
-            if (MenuItem("Copy Place ID"))
-                SetClipboardText(to_string(game.placeId).c_str());
-            if (MenuItem("Copy Universe ID"))
-                SetClipboardText(to_string(game.universeId).c_str());
-            if (MenuItem("Favorite") && !favoriteGameIds.contains(game.universeId)) {
+            {
+                StandardJoinMenuParams menu{};
+                menu.placeId = game.placeId;
+                menu.universeId = game.universeId;
+                menu.jobId = "";
+                menu.onLaunchGame = [pid = game.placeId]() {
+                    if (g_selectedAccountIds.empty()) return;
+                    vector<pair<int, string>> accounts;
+                    for (int id: g_selectedAccountIds) {
+                        auto it = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) { return a.id == id && AccountFilters::IsAccountUsable(a); });
+                        if (it != g_accounts.end()) accounts.emplace_back(it->id, it->cookie);
+                    }
+                    if (!accounts.empty()) thread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); }).detach();
+                };
+                menu.onFillGame = [pid = game.placeId]() { FillJoinOptions(pid, ""); };
+                RenderStandardJoinMenu(menu);
+            }
+            // Universe ID copy is now included in the standardized menu
+            if (MenuItem("Favorite") && favoriteGameIds.count(game.universeId) == 0) {
                 favoriteGameIds.insert(game.universeId);
                 GameInfo favoriteGameInfo = game;
                 favoriteGamesList.insert(favoriteGamesList.begin(), favoriteGameInfo);
@@ -276,24 +307,27 @@ void RenderGamesTab() {
 
     RenderGameSearch();
 
-    constexpr float GamesListWidth = 375.f;
     float availableHeight = GetContentRegionAvail().y;
     float availableWidth = GetContentRegionAvail().x;
+    float minSide = GetFontSize() * 14.0f; // ~224px at 16px
+    float maxSide = GetFontSize() * 20.0f; // ~320px at 16px
+    float baseSideWidth = availableWidth * 0.28f;
+    if (baseSideWidth < minSide) baseSideWidth = minSide;
+    if (baseSideWidth > maxSide) baseSideWidth = maxSide;
 
-    BeginChild("##GamesList", ImVec2(GamesListWidth, availableHeight), true);
-    RenderFavoritesList(GamesListWidth, availableHeight);
+    BeginChild("##GamesList", ImVec2(baseSideWidth, availableHeight), true);
+    RenderFavoritesList(baseSideWidth, availableHeight);
     if (!favoriteGamesList.empty() && !gamesList.empty() && any_of(gamesList.begin(), gamesList.end(),
                                                                    [&](const GameInfo &gameInfo) {
-                                                                       return !favoriteGameIds.contains(
-                                                                           gameInfo.universeId);
+                                                                       return favoriteGameIds.count(gameInfo.universeId) == 0;
                                                                    })) {
         Separator();
     }
-    RenderSearchResultsList(GamesListWidth, availableHeight);
+    RenderSearchResultsList(baseSideWidth, availableHeight);
     EndChild();
     SameLine();
 
-    RenderGameDetailsPanel(availableWidth - GamesListWidth - GetStyle().ItemSpacing.x, availableHeight);
+    RenderGameDetailsPanel(availableWidth - baseSideWidth - GetStyle().ItemSpacing.x, availableHeight);
 }
 
 static void RenderGameDetailsPanel(float panelWidth, float availableHeight) {
@@ -339,8 +373,30 @@ static void RenderGameDetailsPanel(float panelWidth, float availableHeight) {
                                      ImGuiTableFlags_SizingFixedFit;
 
         PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(0.0f, 4.0f));
+        float gameLabelColumnWidth = GetFontSize() * 8.75f;
+        {
+            vector<const char*> labels;
+            labels.push_back("Name:");
+            labels.push_back("Place ID:");
+            labels.push_back("Universe ID:");
+            labels.push_back("Creator:");
+            labels.push_back("Creator ID:");
+            labels.push_back("Creator Type:");
+            labels.push_back("Players:");
+            labels.push_back("Visits:");
+            labels.push_back("Favorites:");
+            labels.push_back("Max Players:");
+            labels.push_back("Price:");
+            labels.push_back("Created:");
+            labels.push_back("Updated:");
+            labels.push_back("Genre:");
+            if (serverCount > 0) labels.push_back("Est. Servers:");
+            float mx = 0.0f;
+            for (const char* lbl : labels) mx = (std::max)(mx, CalcTextSize(lbl).x);
+            gameLabelColumnWidth = (std::max)(gameLabelColumnWidth, mx + GetFontSize() + GetFontSize());
+        }
         if (BeginTable("GameInfoTable", 2, tableFlags)) {
-            TableSetupColumn("##label", ImGuiTableColumnFlags_WidthFixed, 140.f);
+            TableSetupColumn("##label", ImGuiTableColumnFlags_WidthFixed, gameLabelColumnWidth);
             TableSetupColumn("##value", ImGuiTableColumnFlags_WidthStretch);
 
             auto addRow = [&](const char *label, const string &valueString,
@@ -382,10 +438,31 @@ static void RenderGameDetailsPanel(float panelWidth, float availableHeight) {
                    detailInfo.creatorName +
                    string(detailInfo.creatorVerified ? " \xEF\x80\x8C" : ""),
                    detailInfo.creatorVerified ? &verifiedColor : nullptr);
-            addRow("Players:", formatWithCommas(gameInfo.playerCount));
-            addRow("Max Players:", formatWithCommas(detailInfo.maxPlayers));
+            addRow("Creator ID:", to_string(detailInfo.creatorId));
+            addRow("Creator Type:", detailInfo.creatorType.empty() ? string("Unknown") : detailInfo.creatorType);
+            int playersNow = detailInfo.playing > 0 ? detailInfo.playing : gameInfo.playerCount;
+            addRow("Players:", formatWithCommas(playersNow));
             addRow("Visits:", formatWithCommas(detailInfo.visits));
-            addRow("Genre:", detailInfo.genre);
+            addRow("Favorites:", formatWithCommas(detailInfo.favorites));
+            addRow("Max Players:", formatWithCommas(detailInfo.maxPlayers));
+            {
+                string priceStr = (detailInfo.priceRobux >= 0) ? (formatWithCommas(detailInfo.priceRobux)) + string(" R$") : string("0 R$");
+                addRow("Price:", priceStr);
+            }
+            addRow("Created:", formatAbsoluteWithRelativeFromIso(detailInfo.createdIso));
+            addRow("Updated:", formatAbsoluteWithRelativeFromIso(detailInfo.updatedIso));
+            {
+                string genreCombined = detailInfo.genre;
+                if (!detailInfo.genreL1.empty()) {
+                    if (!genreCombined.empty()) genreCombined += ", ";
+                    genreCombined += detailInfo.genreL1;
+                }
+                if (!detailInfo.genreL2.empty()) {
+                    if (!genreCombined.empty()) genreCombined += ", ";
+                    genreCombined += detailInfo.genreL2;
+                }
+                addRow("Genre:", genreCombined);
+            }
             if (serverCount > 0)
                 addRow("Est. Servers:", formatWithCommas(serverCount));
 
@@ -450,7 +527,7 @@ static void RenderGameDetailsPanel(float panelWidth, float availableHeight) {
                 for (int id: g_selectedAccountIds) {
                     auto it = find_if(g_accounts.begin(), g_accounts.end(),
                                       [&](const AccountData &a) { return a.id == id; });
-                    if (it != g_accounts.end() && it->status != "Banned" && it->status != "Warned" && it->status != "Terminated")
+                    if (it != g_accounts.end() && AccountFilters::IsAccountUsable(*it))
                         accounts.emplace_back(it->id, it->cookie);
                 }
                 if (!accounts.empty()) {
@@ -479,22 +556,24 @@ static void RenderGameDetailsPanel(float panelWidth, float availableHeight) {
         OpenPopupOnItemClick("GamePageMenu");
         if (BeginPopup("GamePageMenu")) {
             // Get cookie from primary selected account (first in selected accounts list)
-            string primaryCookie;
+        string primaryCookie;
+        string primaryUserId;
             if (!g_selectedAccountIds.empty()) {
                 auto primaryId = *g_selectedAccountIds.begin();
                 auto it = find_if(g_accounts.begin(), g_accounts.end(),
                     [primaryId](const AccountData &a) { return a.id == primaryId; });
                 if (it != g_accounts.end()) {
-                    primaryCookie = it->cookie;
+            primaryCookie = it->cookie;
+            primaryUserId = it->userId;
                 }
             }
 
             if (MenuItem("Roblox Page"))
-                LaunchWebview("https://www.roblox.com/games/" + to_string(gameInfo.placeId), "Game Page", primaryCookie);
+                LaunchWebview("https://www.roblox.com/games/" + to_string(gameInfo.placeId), "Game Page", primaryCookie, primaryUserId);
             if (MenuItem("Rolimons"))
-                LaunchWebview("https://www.rolimons.com/game/" + to_string(gameInfo.placeId) + "/", "Rolimons", primaryCookie);
+                LaunchWebview("https://www.rolimons.com/game/" + to_string(gameInfo.placeId) + "/", "Rolimons", primaryCookie, primaryUserId);
             if (MenuItem("RoMonitor"))
-                LaunchWebview("https://romonitorstats.com/experience/" + to_string(gameInfo.placeId) + "/", "RoMonitor Stats", primaryCookie);
+                LaunchWebview("https://romonitorstats.com/experience/" + to_string(gameInfo.placeId) + "/", "RoMonitor Stats", primaryCookie, primaryUserId);
             EndPopup();
         }
         Unindent(desiredTextIndent / 2);

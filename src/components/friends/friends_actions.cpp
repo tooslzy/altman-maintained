@@ -59,7 +59,7 @@ namespace FriendsActions {
                 it->presence = pdata.presence;
                 it->lastLocation = pdata.lastLocation;
                 it->placeId = pdata.placeId;
-                it->gameId = pdata.gameId;
+                it->jobId = pdata.jobId;
             }
         }
 
@@ -98,32 +98,45 @@ namespace FriendsActions {
 
         outFriendsList = move(list);
 
+        // Build set of current friend IDs for quick membership checks
+        unordered_set<uint64_t> newIds;
+        for (const auto &f : outFriendsList) newIds.insert(f.id);
+
+        // Detect newly lost friends by diffing previous cache vs current
         vector<FriendInfo> unfriended;
-        {
-            unordered_set<uint64_t> newIds;
-            for (const auto &f : outFriendsList)
-                newIds.insert(f.id);
-            auto itOld = g_accountFriends.find(accountId);
-            if (itOld != g_accountFriends.end()) {
-                for (const auto &oldF : itOld->second) {
-                    if (!newIds.contains(oldF.id))
-                        unfriended.push_back(oldF);
-                }
-            }
-            g_accountFriends[accountId] = outFriendsList;
-        }
-        if (!unfriended.empty()) {
-            auto &stored = g_unfriendedFriends[accountId];
-            std::unordered_set<uint64_t> seen;
-            for (const auto &f : stored) seen.insert(f.id);
-            for (const auto &f : unfriended) {
-                if (!seen.contains(f.id))
-                    stored.push_back(f);
+        auto itOld = g_accountFriends.find(accountId);
+        if (itOld != g_accountFriends.end()) {
+            for (const auto &oldF : itOld->second) {
+                if (newIds.find(oldF.id) == newIds.end())
+                    unfriended.push_back(oldF);
             }
         }
-        else {
-            // ensure entry exists for account even if empty
-            g_unfriendedFriends.try_emplace(accountId, std::vector<FriendInfo>{});
+
+        // Update current friends cache
+        g_accountFriends[accountId] = outFriendsList;
+
+        // Merge newly detected unfriended, ensure container exists
+        auto &stored = g_unfriendedFriends[accountId];
+        std::unordered_set<uint64_t> seen;
+        for (const auto &f : stored) seen.insert(f.id);
+        for (const auto &f : unfriended) {
+            if (seen.find(f.id) == seen.end()) {
+                stored.push_back(f);
+                seen.insert(f.id);
+            }
+        }
+
+        // Validation: remove any unfriended that are now friends and dedupe
+        if (!stored.empty()) {
+            stored.erase(remove_if(stored.begin(), stored.end(), [&](const FriendInfo &fi) {
+                               return newIds.find(fi.id) != newIds.end();
+                           }),
+                         stored.end());
+            std::vector<FriendInfo> dedup;
+            dedup.reserve(stored.size());
+            seen.clear();
+            for (auto &u : stored) if (seen.insert(u.id).second) dedup.push_back(std::move(u));
+            stored.swap(dedup);
         }
         Data::SaveFriends();
         loadingFlag = false;
