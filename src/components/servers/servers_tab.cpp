@@ -26,7 +26,16 @@
 #include "ui/modal_popup.h"
 
 using namespace ImGui;
-using namespace std;
+using std::all_of;
+using std::exception;
+using std::find_if;
+using std::pair;
+using std::sort;
+using std::string;
+using std::thread;
+using std::to_string;
+using std::unordered_map;
+using std::vector;
 
 enum class ServerSortMode { None = 0, PingAsc, PingDesc, PlayersAsc, PlayersDesc };
 
@@ -106,17 +115,17 @@ void RenderServersTab() {
 	SameLine(0, style.ItemSpacing.x);
 	if (Button("Fetch Servers", ImVec2(fetchButtonWidth, 0))) {
 		string raw_pid {s_placeIdBuffer};
-		erase_if(raw_pid, ::isspace);
+		std::erase_if(raw_pid, ::isspace);
 		if (raw_pid.empty() || !all_of(raw_pid.begin(), raw_pid.end(), ::isdigit)) {
 			LOG_INFO("Place ID must be all digits.");
 		} else {
 			try {
-				uint64_t pid_val = stoull(raw_pid);
+				uint64_t pid_val = std::stoull(raw_pid);
 				g_currCursor_servers.clear();
 				fetchPageServers(pid_val);
-			} catch (const out_of_range &oor) {
+			} catch (const std::out_of_range &oor) {
 				LOG_INFO(string("Place ID is too large: ") + oor.what());
-			} catch (const invalid_argument &ia) { LOG_INFO(string("Invalid Place ID format: ") + ia.what()); }
+			} catch (const std::invalid_argument &ia) { LOG_INFO(string("Invalid Place ID format: ") + ia.what()); }
 		}
 	}
 	SameLine(0, style.ItemSpacing.x);

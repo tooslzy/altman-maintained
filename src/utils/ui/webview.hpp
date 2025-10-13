@@ -1,16 +1,22 @@
 #pragma once
 #define IDI_ICON_32 102
 
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#define _ENABLE_EXTENDED_ALPHABETIC_MACROS // Add this macro
+
 #include <WebView2.h>
-#include <shellscalingapi.h>
-#include <shlobj_core.h>
-#include <windows.h>
+#include <shellscalingapi.h> // Moved after windows.h
+#include <shlobj_core.h> // Moved after windows.h
+#include <wil/com.h>
+#include <windows.h> // Moved before WebView2.h
 #include <wrl.h>
 
 #include <atomic>
 #include <chrono>
 #include <cwchar>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -39,6 +45,10 @@ class WebViewWindow {
 		std::wstring windowTitle_;
 		std::wstring cookieValue_;
 		std::wstring userDataFolder_;
+
+		std::function<void(const std::string &)> onCookieExtracted_;
+		std::function<void(const std::string &)> onNavigationCompleted_;
+		bool shouldMonitorAuth_ = false;
 
 	public:
 		WebViewWindow(std::wstring url, std::wstring windowTitle, std::wstring cookie = L"", std::wstring userId = L""):
@@ -77,6 +87,15 @@ class WebViewWindow {
 
 		~WebViewWindow() {
 			if (hwnd_) { DestroyWindow(hwnd_); }
+		}
+
+		void enableAuthMonitoring(std::function<void(const std::string &)> onSuccess) {
+			shouldMonitorAuth_ = true;
+			onCookieExtracted_ = std::move(onSuccess);
+		}
+
+		void close() {
+			if (hwnd_) { PostMessage(hwnd_, WM_CLOSE, 0, 0); }
 		}
 
 		bool create() {
@@ -161,6 +180,8 @@ class WebViewWindow {
 									GetClientRect(hwnd_, &rc);
 									controller_->put_Bounds(rc);
 
+									if (shouldMonitorAuth_) { setupAuthMonitoring(); }
+
 									injectCookie();
 									preWarmNetwork();
 									webview_->Navigate(initialUrl_.c_str());
@@ -221,6 +242,96 @@ class WebViewWindow {
 				UINT dpi = GetDpiForWindow(hwnd_);
 				ctl3->put_RasterizationScale(static_cast<double>(dpi) / 96.0);
 			}
+		}
+
+		void setupAuthMonitoring() {
+			if (!webview_) { return; }
+
+			webview_->add_NavigationCompleted(
+				Callback<ICoreWebView2NavigationCompletedEventHandler>(
+					[this](ICoreWebView2 *sender, ICoreWebView2NavigationCompletedEventArgs *args) -> HRESULT {
+						BOOL success = FALSE;
+						args->get_IsSuccess(&success);
+
+						if (success) {
+							wil::unique_cotaskmem_string uri;
+							sender->get_Source(&uri);
+							std::wstring url(uri.get());
+
+							if (url.find(L"roblox.com/home") != std::wstring::npos) { extractAuthCookie(); }
+						}
+
+						return S_OK;
+					}
+				).Get(),
+				nullptr
+			);
+		}
+
+		void extractAuthCookie() {
+			if (!webview_) { return; }
+
+			ComPtr<ICoreWebView2_2> webview2_2;
+			if (FAILED(webview_.As(&webview2_2))) { return; }
+
+			ComPtr<ICoreWebView2CookieManager> mgr;
+			if (FAILED(webview2_2->get_CookieManager(&mgr))) { return; }
+
+			mgr->GetCookies(
+				L"https://www.roblox.com",
+				Callback<ICoreWebView2GetCookiesCompletedHandler>(
+					[this](HRESULT result, ICoreWebView2CookieList *list) -> HRESULT {
+						if (FAILED(result) || !list) { return S_OK; }
+
+						UINT count = 0;
+						list->get_Count(&count);
+
+						for (UINT i = 0; i < count; i++) {
+							ComPtr<ICoreWebView2Cookie> cookie;
+							list->GetValueAtIndex(i, &cookie);
+
+							wil::unique_cotaskmem_string name;
+							cookie->get_Name(&name);
+
+							if (wcscmp(name.get(), L".ROBLOSECURITY") == 0) {
+								wil::unique_cotaskmem_string value;
+								cookie->get_Value(&value);
+
+								if (onCookieExtracted_) {
+									int len = WideCharToMultiByte(
+										CP_UTF8,
+										0,
+										value.get(),
+										-1,
+										nullptr,
+										0,
+										nullptr,
+										nullptr
+									);
+									std::string cookieUtf8(len - 1, '\0');
+									WideCharToMultiByte(
+										CP_UTF8,
+										0,
+										value.get(),
+										-1,
+										cookieUtf8.data(),
+										len,
+										nullptr,
+										nullptr
+									);
+
+									onCookieExtracted_(cookieUtf8);
+								}
+
+								close();
+								break;
+							}
+						}
+
+						return S_OK;
+					}
+				).Get()
+			);
 		}
 
 		static LRESULT CALLBACK wndProc(HWND h, UINT m, WPARAM w, LPARAM l) {

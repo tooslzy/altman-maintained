@@ -27,7 +27,14 @@
 #include "system/roblox_control.h"
 
 using namespace ImGui;
-using namespace std;
+using std::all_of;
+using std::exception;
+using std::find_if;
+using std::move;
+using std::pair;
+using std::string;
+using std::to_string;
+using std::vector;
 
 static void HelpMarker(const char *desc) {
 	TextDisabled("(i)");

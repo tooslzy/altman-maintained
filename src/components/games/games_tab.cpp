@@ -2,6 +2,7 @@
 #include "games.h"
 #include "games_utils.h"
 #include <algorithm>
+#include <cmath>
 #include <imgui.h>
 #include <string>
 #include <thread>
@@ -23,7 +24,16 @@
 #include "ui/webview.hpp"
 
 using namespace ImGui;
-using namespace std;
+using std::any_of;
+using std::find_if;
+using std::pair;
+using std::sort;
+using std::string;
+using std::thread;
+using std::to_string;
+using std::unordered_map;
+using std::unordered_set;
+using std::vector;
 
 template <typename Container, typename Pred> static inline void erase_if_local(Container &c, Pred p) {
 	c.erase(remove_if(c.begin(), c.end(), p), c.end());
@@ -342,9 +352,10 @@ static void RenderGameDetailsPanel(float panelWidth, float availableHeight) {
 			detailInfo = cacheIterator->second;
 		}
 
-		int serverCount = detailInfo.maxPlayers > 0
-							? static_cast<int>(ceil(static_cast<double>(gameInfo.playerCount) / detailInfo.maxPlayers))
-							: 0;
+		int serverCount
+			= detailInfo.maxPlayers > 0
+				? static_cast<int>(std::ceil(static_cast<double>(gameInfo.playerCount) / detailInfo.maxPlayers))
+				: 0;
 
 		ImGuiTableFlags tableFlags
 			= ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit;

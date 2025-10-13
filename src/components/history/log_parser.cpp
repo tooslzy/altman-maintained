@@ -1,4 +1,5 @@
 #define _CRT_SECURE_NO_WARNINGS
+#include <algorithm>
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
@@ -10,16 +11,20 @@
 
 #include "log_parser.h"
 
-using namespace std;
-namespace fs = filesystem;
+namespace fs = std::filesystem;
+using std::regex;
+using std::regex_match;
+using std::string;
+using std::string_view;
+using std::vector;
 
 string logsFolder() {
-	const char *localAppDataPath = getenv("LOCALAPPDATA");
+	const char *localAppDataPath = std::getenv("LOCALAPPDATA");
 	return localAppDataPath ? string(localAppDataPath) + "\\Roblox\\logs" : string {};
 }
 
 void parseLogFile(LogInfo &logInfo) {
-	using namespace string_view_literals;
+	using namespace std::string_view_literals;
 
 	// Skip installer logs - they contain "RobloxPlayerInstaller" in the filename
 	if (logInfo.fileName.find("RobloxPlayerInstaller") != string::npos) {
@@ -28,7 +33,7 @@ void parseLogFile(LogInfo &logInfo) {
 	}
 
 	constexpr size_t kMaxRead = 512 * 1024; // halfMB
-	ifstream fileInputStream(logInfo.fullPath, ios::binary);
+	std::ifstream fileInputStream(logInfo.fullPath, std::ios::binary);
 	if (!fileInputStream) { return; }
 
 	string fileBuffer(kMaxRead, '\0');
@@ -52,7 +57,7 @@ void parseLogFile(LogInfo &logInfo) {
 		if (!currentLineView.empty() && currentLineView.back() == '\r') { currentLineView.remove_suffix(1); }
 
 		// Track timestamps for all lines to associate with sessions
-		if (currentLineView.length() >= 20 && !currentLineView.empty() && isdigit(currentLineView[0])) {
+		if (currentLineView.length() >= 20 && !currentLineView.empty() && std::isdigit(currentLineView[0])) {
 			size_t timestampZIndex = currentLineView.find('Z');
 			if (timestampZIndex != string_view::npos && timestampZIndex < 30) {
 				// Found a timestamp line

@@ -1,13 +1,14 @@
 #pragma once
-#include "network/http.hpp"
 #include <cctype>
+#include <cstdint>
 #include <string>
+#include <vector>
 #include <windows.h>
 
-std::string base64_encode(const vector<BYTE> &data) {
-	static const string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-									   "abcdefghijklmnopqrstuvwxyz"
-									   "0123456789+/";
+std::string base64_encode(const std::vector<BYTE> &data) {
+	static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+											"abcdefghijklmnopqrstuvwxyz"
+											"0123456789+/";
 
 	std::string ret;
 	int i = 0;
@@ -44,19 +45,20 @@ std::string base64_encode(const vector<BYTE> &data) {
 	return ret;
 }
 
-vector<BYTE> base64_decode(const string &encoded_string) {
-	static const string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-									   "abcdefghijklmnopqrstuvwxyz"
-									   "0123456789+/";
+std::vector<BYTE> base64_decode(const std::string &encoded_string) {
+	static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+											"abcdefghijklmnopqrstuvwxyz"
+											"0123456789+/";
 	int in_len = encoded_string.size();
 	int i = 0;
 	int j = 0;
 	int in_ = 0;
 	BYTE char_array_4[4], char_array_3[3];
-	vector<BYTE> ret;
+	std::vector<BYTE> ret;
 
 	while (in_len-- && (encoded_string[in_] != '=')
-		   && (isalnum(encoded_string[in_]) || (encoded_string[in_] == '+') || (encoded_string[in_] == '/'))) {
+		   && (std::isalnum(static_cast<unsigned char>(encoded_string[in_])) || (encoded_string[in_] == '+')
+			   || (encoded_string[in_] == '/'))) {
 		char_array_4[i++] = encoded_string[in_];
 		in_++;
 		if (i == 4) {

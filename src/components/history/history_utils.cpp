@@ -8,14 +8,12 @@
 #include "history_utils.h"
 #include "log_types.h"
 
-using namespace std;
-
-string friendlyTimestamp(const string &isoTimestamp) {
+std::string friendlyTimestamp(const std::string &isoTimestamp) {
 	if (isoTimestamp.empty()) { return isoTimestamp; }
 	return formatAbsoluteFromIso(isoTimestamp);
 }
 
-string niceLabel(const LogInfo &logInfo) {
+std::string niceLabel(const LogInfo &logInfo) {
 	if (logInfo.timestamp.size() >= 19) {
 		time_t t = parseIsoTimestamp(logInfo.timestamp);
 		if (t != static_cast<time_t>(-1) && t != 0) {

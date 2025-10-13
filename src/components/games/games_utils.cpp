@@ -7,8 +7,8 @@
 #include <sstream>
 #include <string>
 
-using namespace std;
-using namespace chrono;
+using std::string;
+using std::to_string;
 
 string formatPrettyDate(const string &isoTimestampRaw) {
 	time_t t = parseIsoTimestamp(isoTimestampRaw);

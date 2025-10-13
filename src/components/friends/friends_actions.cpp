@@ -2,11 +2,17 @@
 #include "core/status.h"
 #include "network/roblox.h"
 #include <algorithm>
+#include <atomic>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
-using namespace std;
+using std::atomic;
+using std::find_if;
+using std::move;
+using std::string;
+using std::unordered_set;
+using std::vector;
 
 static int presencePriority(const string &p) {
 	if (p == "InGame") { return 0; }
@@ -37,8 +43,8 @@ namespace FriendsActions {
 		LOG_INFO("Fetching friend presences...");
 
 		for (size_t i = 0; i < ids.size(); i += 100) {
-			size_t batchEnd = (min)(ids.size(), i + 100);
-			vector batch_ids(ids.begin() + i, ids.begin() + batchEnd);
+			size_t batchEnd = (std::min)(ids.size(), i + 100);
+			vector<uint64_t> batch_ids(ids.begin() + i, ids.begin() + batchEnd);
 
 			if (batch_ids.empty()) { continue; }
 
@@ -116,7 +122,7 @@ namespace FriendsActions {
 		// Validation: remove any unfriended that are now friends and dedupe
 		if (!stored.empty()) {
 			stored.erase(
-				remove_if(
+				std::remove_if(
 					stored.begin(),
 					stored.end(),
 					[&](const FriendInfo &fi) { return newIds.find(fi.id) != newIds.end(); }

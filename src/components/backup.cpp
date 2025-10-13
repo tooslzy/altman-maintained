@@ -137,8 +137,8 @@ bool Backup::Import(const std::string &file, const std::string &password, std::s
 
 		// Get user information
 		uint64_t uid = Roblox::getUserId(acct.cookie);
-		string username = Roblox::getUsername(acct.cookie);
-		string displayName = Roblox::getDisplayName(acct.cookie);
+		std::string username = Roblox::getUsername(acct.cookie);
+		std::string displayName = Roblox::getDisplayName(acct.cookie);
 
 		// Double-check that we got valid user data
 		if (uid == 0 || username.empty() || displayName.empty()) {

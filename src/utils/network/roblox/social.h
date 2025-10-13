@@ -87,12 +87,12 @@ namespace Roblox {
 		if (!canUseCookie(cookie)) { return FriendDetail {}; }
 
 		FriendDetail d;
-		mutex m;
-		condition_variable cv;
+		std::mutex m;
+		std::condition_variable cv;
 		int remaining = 4;
 
 		auto signalDone = [&] {
-			lock_guard<mutex> lk(m);
+			std::lock_guard<std::mutex> lk(m);
 			if (--remaining == 0) { cv.notify_one(); }
 		};
 
@@ -150,7 +150,7 @@ namespace Roblox {
 			signalDone();
 		});
 
-		unique_lock<mutex> lk(m);
+		std::unique_lock<std::mutex> lk(m);
 		cv.wait(lk, [&] { return remaining == 0; });
 
 		return d;

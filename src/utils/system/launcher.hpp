@@ -1,4 +1,5 @@
 ﻿#include "network/http.hpp"
+#include <cctype>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
@@ -12,23 +13,20 @@
 #include "roblox_control.h"
 #include "ui/notifications.h"
 
-using namespace std;
-using namespace std::chrono;
-
-static string urlEncode(const string &s) {
-	ostringstream out;
-	out << hex << uppercase;
+static std::string urlEncode(const std::string &s) {
+	std::ostringstream out;
+	out << std::hex << std::uppercase;
 	for (unsigned char c : s) {
-		if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+		if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
 			out << c;
 		} else {
-			out << '%' << setw(2) << setfill('0') << static_cast<int>(c);
+			out << '%' << std::setw(2) << std::setfill('0') << static_cast<int>(c);
 		}
 	}
 	return out.str();
 }
 
-inline HANDLE startRoblox(uint64_t placeId, const string &jobId, const string &cookie) {
+inline HANDLE startRoblox(uint64_t placeId, const std::string &jobId, const std::string &cookie) {
 	// Status::Set("Fetching x-csrf token"); // REMOVE THIS
 	LOG_INFO("Fetching x-csrf token");
 	auto csrfResponse = HttpClient::post(
@@ -40,7 +38,7 @@ inline HANDLE startRoblox(uint64_t placeId, const string &jobId, const string &c
 
 	auto csrfToken = csrfResponse.headers.find("x-csrf-token");
 	if (csrfToken == csrfResponse.headers.end()) {
-		cerr << "failed to get CSRF token\n";
+		std::cerr << "failed to get CSRF token\n";
 
 		// Status::Set("Failed to get CSRF token"); // REMOVE THIS
 		LOG_ERROR("Failed to get CSRF token"); // This will now set the status
@@ -61,38 +59,40 @@ inline HANDLE startRoblox(uint64_t placeId, const string &jobId, const string &c
 
 	auto ticket = ticketResponse.headers.find("rbx-authentication-ticket");
 	if (ticket == ticketResponse.headers.end()) {
-		cerr << "failed to get authentication ticket\n";
+		std::cerr << "failed to get authentication ticket\n";
 		// Status::Set("Failed to get authentication ticket"); // REMOVE THIS
 		LOG_ERROR("Failed to get authentication ticket"); // This will now set the status
 		return nullptr;
 	}
 
-	auto nowMs = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-	ostringstream ts;
+	auto nowMs
+		= std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+			  .count();
+	std::ostringstream ts;
 	ts << nowMs;
 
-	string placeLauncherUrl = "https://assetgame.roblox.com/game/PlaceLauncher.ashx?"
-							  "request=RequestGameJob"
-							  "&browserTrackerId=147062882894"
-							  "&placeId="
-							+ to_string(placeId) + "&gameId=" + jobId
-							+ "&isPlayTogetherGame=false"
-							  "+browsertrackerid:147062882894"
-							  "+robloxLocale:en_us"
-							  "+gameLocale:en_us"
-							  "+channel:";
+	std::string placeLauncherUrl = "https://assetgame.roblox.com/game/PlaceLauncher.ashx?"
+								   "request=RequestGameJob"
+								   "&browserTrackerId=147062882894"
+								   "&placeId="
+								 + std::to_string(placeId) + "&gameId=" + jobId
+								 + "&isPlayTogetherGame=false"
+								   "+browsertrackerid:147062882894"
+								   "+robloxLocale:en_us"
+								   "+gameLocale:en_us"
+								   "+channel:";
 
-	string protocolLaunchCommand = "roblox-player:1+launchmode:play"
-								   "+gameinfo:"
-								 + ticket->second + "+launchtime:" + ts.str()
-								 + "+placelauncherurl:" + urlEncode(placeLauncherUrl);
+	std::string protocolLaunchCommand = "roblox-player:1+launchmode:play"
+										"+gameinfo:"
+									  + ticket->second + "+launchtime:" + ts.str()
+									  + "+placelauncherurl:" + urlEncode(placeLauncherUrl);
 
-	string logMessage = "Attempting to launch Roblox for place ID: " + to_string(placeId)
-					  + (jobId.empty() ? "" : " with Job ID: " + jobId);
+	std::string logMessage = "Attempting to launch Roblox for place ID: " + std::to_string(placeId)
+						   + (jobId.empty() ? "" : " with Job ID: " + jobId);
 	LOG_INFO(logMessage);
 
-	wstring notificationTitle = L"Launching";
-	wostringstream notificationMessageStream;
+	std::wstring notificationTitle = L"Launching";
+	std::wostringstream notificationMessageStream;
 	notificationMessageStream << L"Attempting to launch Roblox for place ID: " << placeId;
 	if (!jobId.empty()) { notificationMessageStream << L" with Job ID: " << jobId.c_str(); }
 	Notifications::showNotification(notificationTitle.c_str(), notificationMessageStream.str().c_str());
@@ -104,12 +104,12 @@ inline HANDLE startRoblox(uint64_t placeId, const string &jobId, const string &c
 	executionInfo.nShow = SW_SHOWNORMAL;
 
 	if (!ShellExecuteExA(&executionInfo)) {
-		LOG_ERROR("ShellExecuteExA failed for Roblox launch. Error: " + to_string(GetLastError()));
-		cerr << "ShellExecuteEx failed: " << GetLastError() << "\n";
+		LOG_ERROR("ShellExecuteExA failed for Roblox launch. Error: " + std::to_string(GetLastError()));
+		std::cerr << "ShellExecuteEx failed: " << GetLastError() << "\n";
 		return nullptr;
 	}
 
-	LOG_INFO("Roblox process started successfully for place ID: " + to_string(placeId));
+	LOG_INFO("Roblox process started successfully for place ID: " + std::to_string(placeId));
 	return executionInfo.hProcess;
 }
 

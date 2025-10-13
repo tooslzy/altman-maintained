@@ -10,7 +10,6 @@
 #include "core/app_state.h"
 
 using namespace ImGui;
-using namespace std;
 
 // Static flag to manage console modal visibility
 static bool g_requestOpenConsoleModal = false;

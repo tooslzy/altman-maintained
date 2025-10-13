@@ -1,5 +1,4 @@
-﻿#define WIN32_LEAN_AND_MEAN
-#include "data.h"
+﻿#include "data.h"
 #include <dpapi.h>
 #include <filesystem>
 #include <fstream>
@@ -9,6 +8,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <wincrypt.h>
 #include <windows.h>
 
 #include "core/app_state.h"
@@ -17,8 +17,20 @@
 
 #pragma comment(lib, "Crypt32.lib")
 
-using namespace std;
 using json = nlohmann::json;
+
+using std::array;
+using std::exception;
+using std::ifstream;
+using std::move;
+using std::ofstream;
+using std::runtime_error;
+using std::set;
+using std::string;
+using std::to_string;
+using std::unordered_map;
+using std::unordered_set;
+using std::vector;
 
 vector<AccountData> g_accounts;
 set<int> g_selectedAccountIds;

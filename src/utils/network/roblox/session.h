@@ -46,10 +46,10 @@ namespace Roblox {
 		if (json.contains("userPresences") && json["userPresences"].is_array() && !json["userPresences"].empty()) {
 			const auto &jsonData = json["userPresences"][0];
 			int typeInt = jsonData.value("userPresenceType", 0);
-			string status = presenceTypeToString(typeInt);
+			std::string presenceStatus = presenceTypeToString(typeInt);
 
 			LOG_INFO("Got user presence for " + std::to_string(userId));
-			return status;
+			return presenceStatus;
 		}
 		return "Offline";
 	}

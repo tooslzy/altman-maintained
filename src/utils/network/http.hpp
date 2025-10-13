@@ -8,17 +8,16 @@
 #include <sstream>
 #include <string>
 
-using namespace std;
-
 namespace HttpClient {
 	struct Response {
 			int status_code;
-			string text;
-			map<string, string> headers;
+			std::string text;
+			std::map<std::string, std::string> headers;
 	};
 
-	inline string build_kv_string(initializer_list<pair<const string, string>> items, char sep = '&') {
-		ostringstream ss;
+	inline std::string
+		build_kv_string(std::initializer_list<std::pair<const std::string, std::string>> items, char sep = '&') {
+		std::ostringstream ss;
 		bool first = true;
 		for (auto &kv : items) {
 			if (!first) { ss << sep; }
@@ -42,10 +41,10 @@ namespace HttpClient {
 	}
 
 	inline Response post(
-		const string &url,
-		initializer_list<pair<const string, string>> headers = {},
-		const string &jsonBody = string(),
-		initializer_list<pair<const string, string>> form = {}
+		const std::string &url,
+		std::initializer_list<std::pair<const std::string, std::string>> headers = {},
+		const std::string &jsonBody = std::string(),
+		std::initializer_list<std::pair<const std::string, std::string>> form = {}
 	) {
 		cpr::Header h {headers};
 		cpr::Response r;
@@ -53,13 +52,13 @@ namespace HttpClient {
 			h["Content-Type"] = "application/json";
 			r = cpr::Post(cpr::Url {url}, h, cpr::Body {jsonBody});
 		} else if (form.size() > 0) {
-			string body = build_kv_string(form);
+			std::string body = build_kv_string(form);
 			h["Content-Type"] = "application/x-www-form-urlencoded";
 			r = cpr::Post(cpr::Url {url}, h, cpr::Body {body});
 		} else {
 			r = cpr::Post(cpr::Url {url}, h);
 		}
-		map<string, string> hdrs(r.header.begin(), r.header.end());
+		std::map<std::string, std::string> hdrs(r.header.begin(), r.header.end());
 		return {r.status_code, r.text, hdrs};
 	}
 

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <filesystem>
 #include <imgui.h>
@@ -31,9 +32,22 @@
 #include "ui/modal_popup.h"
 #include <windows.h>
 
-namespace fs = filesystem;
+namespace fs = std::filesystem;
 using namespace ImGui;
-using namespace std;
+using std::atomic_bool;
+using std::call_once;
+using std::error_code;
+using std::find_if;
+using std::lock_guard;
+using std::mutex;
+using std::once_flag;
+using std::pair;
+using std::sort;
+using std::string;
+using std::thread;
+using std::to_string;
+using std::transform;
+using std::vector;
 
 static int g_selected_log_idx = -1;
 
