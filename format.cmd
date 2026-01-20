@@ -13,9 +13,10 @@ if errorlevel 1 (
 
 echo Formatting all source files...
 
-for /r %%f in (*.cpp *.h *.c *.hpp *.cc *.cxx) do (
+cd /d .\src
+for /r %%f in (*.c *.h *.cpp *.hpp *.cc *.hh *.cxx *.hxx *.c++ *.h++) do (
 	echo Formatting: "%%f"
-	clang-format --style="file:./.clang-format" -i "%%f"
+	clang-format --style="file:..\.clang-format" -i "%%f"
 )
 
 echo All files formatted successfully
