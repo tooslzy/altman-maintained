@@ -1,8 +1,9 @@
 #pragma once
 
 #include "../../components/data.h"
-#include "crypto.h"
 #include "logging.hpp"
+#include "network/roblox/hba.h"
+#include <optional>
 #include <string_view>
 
 namespace AccountFilters {
@@ -19,18 +20,10 @@ namespace AccountUtils {
 	 * Generate a new HBA key pair for an account
 	 * @param account The account to generate keys for
 	 * @return true if keys were generated successfully
+	 *
+	 * Note: Implementation in account_utils.cpp to avoid OpenSSL/wincrypt header conflicts
 	 */
-	inline bool generateHBAKeys(AccountData &account) {
-		Crypto::ECKeyPair keyPair = Crypto::generateECKeyPair();
-		if (!keyPair.isValid()) {
-			LOG_ERROR("Failed to generate HBA keys for account: " + account.username);
-			return false;
-		}
-
-		account.hbaPrivateKey = keyPair.privateKeyPEM;
-		LOG_INFO("Generated HBA keys for account: " + account.username);
-		return true;
-	}
+	bool generateHBAKeys(AccountData &account);
 
 	/**
 	 * Ensure an account has HBA keys, generating them if missing
@@ -66,6 +59,75 @@ namespace AccountUtils {
 		}
 		if (migrated > 0) { LOG_INFO("Migrated " + std::to_string(migrated) + " accounts to HBA"); }
 		return migrated;
+	}
+
+	/**
+	 * Create AuthCredentials from an AccountData struct
+	 * @param account The account to extract credentials from
+	 * @return AuthCredentials struct with the account's auth info
+	 */
+	inline Roblox::HBA::AuthCredentials credentialsFromAccount(const AccountData &account) {
+		return Roblox::HBA::AuthCredentials {
+			.accountId = account.id,
+			.cookie = account.cookie,
+			.hbaPrivateKey = account.hbaPrivateKey,
+			.hbaEnabled = account.hbaEnabled
+		};
+	}
+
+	/**
+	 * Get auth credentials for the default account (g_defaultAccountId or first usable)
+	 * @return AuthCredentials if a usable account exists, nullopt otherwise
+	 */
+	inline std::optional<Roblox::HBA::AuthCredentials> getDefaultAuthCredentials() {
+		// First try the default account if set
+		if (g_defaultAccountId > 0) {
+			for (const auto &account : g_accounts) {
+				if (account.id == g_defaultAccountId && AccountFilters::IsAccountUsable(account)) {
+					return credentialsFromAccount(account);
+				}
+			}
+		}
+
+		// Fall back to first usable account
+		for (const auto &account : g_accounts) {
+			if (AccountFilters::IsAccountUsable(account)) { return credentialsFromAccount(account); }
+		}
+
+		return std::nullopt;
+	}
+
+	/**
+	 * Get auth credentials for a specific account ID, or fallback to default
+	 * @param accountId The account ID to look for
+	 * @return AuthCredentials if found and usable, or default account credentials
+	 */
+	inline std::optional<Roblox::HBA::AuthCredentials> getAuthCredentials(int accountId) {
+		for (const auto &account : g_accounts) {
+			if (account.id == accountId && AccountFilters::IsAccountUsable(account)) {
+				return credentialsFromAccount(account);
+			}
+		}
+
+		// Fall back to default
+		return getDefaultAuthCredentials();
+	}
+
+	/**
+	 * Get auth credentials from the first selected account that is usable
+	 * @return AuthCredentials if a usable selected account exists, nullopt otherwise
+	 */
+	inline std::optional<Roblox::HBA::AuthCredentials> getSelectedAuthCredentials() {
+		for (int id : g_selectedAccountIds) {
+			for (const auto &account : g_accounts) {
+				if (account.id == id && AccountFilters::IsAccountUsable(account)) {
+					return credentialsFromAccount(account);
+				}
+			}
+		}
+
+		// Fall back to default if no selected accounts are usable
+		return getDefaultAuthCredentials();
 	}
 
 } // namespace AccountUtils

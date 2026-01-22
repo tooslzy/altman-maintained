@@ -82,10 +82,11 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 			if (account.status == "InGame" && account.placeId == 0 && !account.userId.empty()) {
 				if (g_presenceFetchInFlight.find(account.id) == g_presenceFetchInFlight.end()) {
 					g_presenceFetchInFlight.insert(account.id);
-					Threading::newThread([acctId = account.id, userIdStr = account.userId, cookie = account.cookie]() {
+					auto creds = AccountUtils::credentialsFromAccount(account);
+					Threading::newThread([acctId = account.id, userIdStr = account.userId, creds]() {
 						try {
 							uint64_t uid = stoull(userIdStr);
-							auto pres = Roblox::getPresences({uid}, cookie);
+							auto pres = Roblox::getPresences({uid}, creds.toAuthConfig());
 							auto it = pres.find(uid);
 							if (it != pres.end()) {
 								for (auto &a : g_accounts) {
@@ -175,9 +176,9 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 					bool clicked = MenuItem("Launch Link", nullptr, false, anyCookie);
 					PopStyleColor();
 					if (clicked) {
-						vector<pair<int, string>> accs;
+						vector<Roblox::HBA::AuthCredentials> accs;
 						for (const AccountData *ap : selectedAccounts) {
-							if (!ap->cookie.empty()) { accs.emplace_back(ap->id, ap->cookie); }
+							if (!ap->cookie.empty()) { accs.push_back(AccountUtils::credentialsFromAccount(*ap)); }
 						}
 						string place_id_str = join_value_buf;
 						string job_id_str = join_jobid_buf;
@@ -190,8 +191,8 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 							thread_local mt19937_64 rng {random_device {}()};
 							static uniform_int_distribution<int> d1(100000, 130000), d2(100000, 900000);
 							string out;
-							for (auto &p : accs) {
-								string ticket = Roblox::fetchAuthTicket(p.second);
+							for (const auto &creds : accs) {
+								string ticket = Roblox::fetchAuthTicket(creds.toAuthConfig());
 								if (ticket.empty()) { continue; }
 								string browserTracker = to_string(d1(rng)) + to_string(d2(rng));
 								string placeLauncherUrl
@@ -226,14 +227,10 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 					bool clicked = MenuItem("Launch Link", nullptr, false, !account.cookie.empty());
 					PopStyleColor();
 					if (clicked) {
-						string acc_cookie = account.cookie;
+						auto creds = AccountUtils::credentialsFromAccount(account);
 						string place_id_str = join_value_buf;
 						string job_id_str = join_jobid_buf;
-						Threading::newThread([acc_cookie,
-											  place_id_str,
-											  job_id_str,
-											  account_id = account.id,
-											  account_display_name = account.displayName] {
+						Threading::newThread([creds, place_id_str, job_id_str] {
 							bool hasJob = !job_id_str.empty();
 							auto now_ms = chrono::duration_cast<chrono::milliseconds>(
 											  chrono::system_clock::now().time_since_epoch()
@@ -242,7 +239,7 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 							thread_local mt19937_64 rng {random_device {}()};
 							static uniform_int_distribution<int> d1(100000, 130000), d2(100000, 900000);
 							string browserTracker = to_string(d1(rng)) + to_string(d2(rng));
-							string ticket = Roblox::fetchAuthTicket(acc_cookie);
+							string ticket = Roblox::fetchAuthTicket(creds.toAuthConfig());
 							if (ticket.empty()) { return; }
 							string placeLauncherUrl
 								= "https://assetgame.roblox.com/game/PlaceLauncher.ashx?request=RequestGame%26placeId="
@@ -499,16 +496,20 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 				menu.placeId = placeId;
 				menu.jobId = jobId;
 				menu.onLaunchGame = [pid = placeId, &account]() {
-					vector<pair<int, string>> accounts;
-					if (AccountFilters::IsAccountUsable(account)) { accounts.emplace_back(account.id, account.cookie); }
+					vector<Roblox::HBA::AuthCredentials> accounts;
+					if (AccountFilters::IsAccountUsable(account)) {
+						accounts.push_back(AccountUtils::credentialsFromAccount(account));
+					}
 					if (!accounts.empty()) {
 						Threading::newThread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); });
 					}
 				};
 				menu.onLaunchInstance = [pid = placeId, jid = jobId, &account]() {
 					if (jid.empty()) { return; }
-					vector<pair<int, string>> accounts;
-					if (AccountFilters::IsAccountUsable(account)) { accounts.emplace_back(account.id, account.cookie); }
+					vector<Roblox::HBA::AuthCredentials> accounts;
+					if (AccountFilters::IsAccountUsable(account)) {
+						accounts.push_back(AccountUtils::credentialsFromAccount(account));
+					}
 					if (!accounts.empty()) {
 						Threading::newThread([pid, jid, accounts]() { launchRobloxSequential(pid, jid, accounts); });
 					}

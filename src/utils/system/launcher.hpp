@@ -1,15 +1,17 @@
-﻿#include "network/http.hpp"
+﻿#pragma once
+
 #include <cctype>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
-#include <utility>
 #include <vector>
 #include <windows.h>
 
 #include "../../components/data.h"
 #include "core/logging.hpp"
+#include "network/roblox/auth.h"
+#include "network/roblox/hba.h"
 #include "roblox_control.h"
 #include "ui/notifications.h"
 
@@ -26,42 +28,22 @@ static std::string urlEncode(const std::string &s) {
 	return out.str();
 }
 
-inline HANDLE startRoblox(uint64_t placeId, const std::string &jobId, const std::string &cookie) {
-	// Status::Set("Fetching x-csrf token"); // REMOVE THIS
-	LOG_INFO("Fetching x-csrf token");
-	auto csrfResponse = HttpClient::post(
-		"https://auth.roblox.com/v1/authentication-ticket",
-		{
-			{"Cookie", ".ROBLOSECURITY=" + cookie}
-	}
-	);
+/**
+ * Launch Roblox for a specific place/server with HBA-enabled authentication
+ * @param placeId The place ID to join
+ * @param jobId The job ID (server instance), can be empty for random server
+ * @param creds Authentication credentials with HBA support
+ * @return Process handle, or nullptr on failure
+ */
+inline HANDLE startRoblox(uint64_t placeId, const std::string &jobId, const Roblox::HBA::AuthCredentials &creds) {
+	LOG_INFO("Fetching authentication ticket (HBA-enabled)");
 
-	auto csrfToken = csrfResponse.headers.find("x-csrf-token");
-	if (csrfToken == csrfResponse.headers.end()) {
-		std::cerr << "failed to get CSRF token\n";
+	// Use the HBA-enabled fetchAuthTicket which handles CSRF and BAT
+	std::string ticket = Roblox::fetchAuthTicket(creds.toAuthConfig());
 
-		// Status::Set("Failed to get CSRF token"); // REMOVE THIS
-		LOG_ERROR("Failed to get CSRF token"); // This will now set the status
-		return nullptr;
-	}
-
-	// Status::Set("Fetching authentication ticket"); // REMOVE THIS
-	LOG_INFO("Fetching authentication ticket"); // This will now set the status
-	auto ticketResponse = HttpClient::post(
-		"https://auth.roblox.com/v1/authentication-ticket",
-		{
-			{"Cookie",	   ".ROBLOSECURITY=" + cookie},
-			{"Origin",	   "https://www.roblox.com"  },
-			{"Referer",		"https://www.roblox.com/" },
-			{"X-CSRF-TOKEN", csrfToken->second		  }
-	}
-	);
-
-	auto ticket = ticketResponse.headers.find("rbx-authentication-ticket");
-	if (ticket == ticketResponse.headers.end()) {
+	if (ticket.empty()) {
+		LOG_ERROR("Failed to get authentication ticket");
 		std::cerr << "failed to get authentication ticket\n";
-		// Status::Set("Failed to get authentication ticket"); // REMOVE THIS
-		LOG_ERROR("Failed to get authentication ticket"); // This will now set the status
 		return nullptr;
 	}
 
@@ -84,7 +66,7 @@ inline HANDLE startRoblox(uint64_t placeId, const std::string &jobId, const std:
 
 	std::string protocolLaunchCommand = "roblox-player:1+launchmode:play"
 										"+gameinfo:"
-									  + ticket->second + "+launchtime:" + ts.str()
+									  + ticket + "+launchtime:" + ts.str()
 									  + "+placelauncherurl:" + urlEncode(placeLauncherUrl);
 
 	std::string logMessage = "Attempting to launch Roblox for place ID: " + std::to_string(placeId)
@@ -113,27 +95,33 @@ inline HANDLE startRoblox(uint64_t placeId, const std::string &jobId, const std:
 	return executionInfo.hProcess;
 }
 
+/**
+ * Launch Roblox sequentially for multiple accounts with HBA support
+ * @param placeId The place ID to join
+ * @param jobId The job ID (server instance), can be empty for random server
+ * @param accounts Vector of authentication credentials for each account
+ */
 inline void launchRobloxSequential(
 	uint64_t placeId,
 	const std::string &jobId,
-	const std::vector<std::pair<int, std::string>> &accounts
+	const std::vector<Roblox::HBA::AuthCredentials> &accounts
 ) {
 	if (g_killRobloxOnLaunch) { RobloxControl::KillRobloxProcesses(); }
 
 	if (g_clearCacheOnLaunch) { RobloxControl::ClearRobloxCache(); }
 
-	for (const auto &[accountId, cookie] : accounts) {
+	for (const auto &creds : accounts) {
 		LOG_INFO(
-			"Launching Roblox for account ID: " + std::to_string(accountId) + " PlaceID: " + std::to_string(placeId)
-			+ (jobId.empty() ? "" : " JobID: " + jobId)
+			"Launching Roblox for account ID: " + std::to_string(creds.accountId)
+			+ " PlaceID: " + std::to_string(placeId) + (jobId.empty() ? "" : " JobID: " + jobId)
 		);
-		HANDLE proc = startRoblox(placeId, jobId, cookie);
+		HANDLE proc = startRoblox(placeId, jobId, creds);
 		if (proc) {
 			WaitForInputIdle(proc, INFINITE);
 			CloseHandle(proc);
-			LOG_INFO("Roblox launched successfully for account ID: " + std::to_string(accountId));
+			LOG_INFO("Roblox launched successfully for account ID: " + std::to_string(creds.accountId));
 		} else {
-			LOG_ERROR("Failed to start Roblox for account ID: " + std::to_string(accountId));
+			LOG_ERROR("Failed to start Roblox for account ID: " + std::to_string(creds.accountId));
 		}
 	}
 }

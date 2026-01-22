@@ -249,7 +249,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					continue;
 				} else if (banInfo.status == Roblox::BanCheckResult::Unbanned) {
 					// Get fresh data from authenticated endpoint
-					auto userJson = Roblox::getAuthenticatedUser(acct.cookie);
+					auto config = AccountUtils::credentialsFromAccount(acct).toAuthConfig();
+					auto userJson = Roblox::getAuthenticatedUser(config);
 					if (!userJson.empty()) {
 						// Update everything from authenticated data
 						acct.userId = std::to_string(userJson.value("id", 0ULL));
@@ -259,7 +260,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 						try {
 							uid = std::stoull(acct.userId);
-							auto presences = Roblox::getPresences({uid}, acct.cookie);
+							auto presences = Roblox::getPresences({uid}, config);
 							if (!presences.empty()) {
 								auto it = presences.find(uid);
 								if (it != presences.end()) {
@@ -274,12 +275,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 									acct.jobId.clear();
 								}
 							} else {
-								acct.status = Roblox::getPresence(acct.cookie, uid);
+								acct.status = Roblox::getPresence(config, uid);
 								acct.lastLocation = "";
 								acct.placeId = 0;
 								acct.jobId.clear();
 							}
-							auto vs = Roblox::getVoiceChatStatus(acct.cookie);
+							auto vs = Roblox::getVoiceChatStatus(config);
 							acct.voiceStatus = vs.status;
 							acct.voiceBanExpiry = vs.bannedUntil;
 							acct.banExpiry = 0;

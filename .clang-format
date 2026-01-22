@@ -78,8 +78,8 @@ PackConstructorInitializers: CurrentLine
 DerivePointerAlignment: false
 PointerAlignment: Right
 RequiresClausePosition: OwnLine
-SortIncludes: true
-SortUsingDeclarations: true
+SortIncludes: false
+SortUsingDeclarations: false
 SpaceAfterCStyleCast: false
 SpaceAfterLogicalNot: false
 SpaceAfterTemplateKeyword: true

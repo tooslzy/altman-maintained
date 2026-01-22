@@ -153,12 +153,14 @@ static void RenderFavoritesList(float listWidth, float availableHeight) {
 					menu.jobId = ""; // games have no instance context here
 					menu.onLaunchGame = [pid = game.placeId]() {
 						if (g_selectedAccountIds.empty()) { return; }
-						vector<pair<int, string>> accounts;
+						vector<Roblox::HBA::AuthCredentials> accounts;
 						for (int id : g_selectedAccountIds) {
 							auto it = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) {
 								return a.id == id && AccountFilters::IsAccountUsable(a);
 							});
-							if (it != g_accounts.end()) { accounts.emplace_back(it->id, it->cookie); }
+							if (it != g_accounts.end()) {
+								accounts.push_back(AccountUtils::credentialsFromAccount(*it));
+							}
 						}
 						if (!accounts.empty()) {
 							thread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); }).detach();
@@ -247,12 +249,12 @@ static void RenderSearchResultsList(float listWidth, float availableHeight) {
 				menu.jobId = "";
 				menu.onLaunchGame = [pid = game.placeId]() {
 					if (g_selectedAccountIds.empty()) { return; }
-					vector<pair<int, string>> accounts;
+					vector<Roblox::HBA::AuthCredentials> accounts;
 					for (int id : g_selectedAccountIds) {
 						auto it = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) {
 							return a.id == id && AccountFilters::IsAccountUsable(a);
 						});
-						if (it != g_accounts.end()) { accounts.emplace_back(it->id, it->cookie); }
+						if (it != g_accounts.end()) { accounts.push_back(AccountUtils::credentialsFromAccount(*it)); }
 					}
 					if (!accounts.empty()) {
 						thread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); }).detach();
@@ -503,13 +505,13 @@ static void RenderGameDetailsPanel(float panelWidth, float availableHeight) {
 		Indent(desiredTextIndent / 2);
 		if (Button((string(ICON_LAUNCH) + " Launch Game").c_str())) {
 			if (!g_selectedAccountIds.empty()) {
-				vector<pair<int, string>> accounts;
+				vector<Roblox::HBA::AuthCredentials> accounts;
 				for (int id : g_selectedAccountIds) {
 					auto it = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) {
 						return a.id == id;
 					});
 					if (it != g_accounts.end() && AccountFilters::IsAccountUsable(*it)) {
-						accounts.emplace_back(it->id, it->cookie);
+						accounts.push_back(AccountUtils::credentialsFromAccount(*it));
 					}
 				}
 				if (!accounts.empty()) {

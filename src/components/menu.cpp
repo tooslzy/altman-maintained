@@ -318,7 +318,8 @@ bool RenderMainMenu() {
 						if (!acct.userId.empty()) {
 							try {
 								uint64_t uid = stoull(acct.userId);
-								auto pres = Roblox::getPresences({uid}, acct.cookie);
+								auto config = AccountUtils::credentialsFromAccount(acct).toAuthConfig();
+								auto pres = Roblox::getPresences({uid}, config);
 								auto it = pres.find(uid);
 								if (it != pres.end()) {
 									acct.status = it->second.presence;
@@ -326,12 +327,12 @@ bool RenderMainMenu() {
 									acct.placeId = it->second.placeId;
 									acct.jobId = it->second.jobId;
 								} else {
-									acct.status = Roblox::getPresence(acct.cookie, uid);
+									acct.status = Roblox::getPresence(config, uid);
 									acct.lastLocation.clear();
 									acct.placeId = 0;
 									acct.jobId.clear();
 								}
-								auto vs = Roblox::getVoiceChatStatus(acct.cookie);
+								auto vs = Roblox::getVoiceChatStatus(config);
 								acct.voiceStatus = vs.status;
 								acct.voiceBanExpiry = vs.bannedUntil;
 							} catch (...) {

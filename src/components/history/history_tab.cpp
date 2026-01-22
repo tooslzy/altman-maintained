@@ -503,13 +503,13 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 						} catch (...) {}
 
 						if (place_id_val > 0) {
-							vector<pair<int, string>> accounts;
+							vector<Roblox::HBA::AuthCredentials> accounts;
 							for (int id : g_selectedAccountIds) {
 								auto it = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) {
 									return a.id == id;
 								});
 								if (it != g_accounts.end() && AccountFilters::IsAccountUsable(*it)) {
-									accounts.emplace_back(it->id, it->cookie);
+									accounts.push_back(AccountUtils::credentialsFromAccount(*it));
 								}
 							}
 							if (!accounts.empty()) {
@@ -543,12 +543,14 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 						menu.jobId = session.jobId;
 						menu.onLaunchGame = [pid]() {
 							if (pid == 0 || g_selectedAccountIds.empty()) { return; }
-							vector<pair<int, string>> accounts;
+							vector<Roblox::HBA::AuthCredentials> accounts;
 							for (int id : g_selectedAccountIds) {
 								auto it = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) {
 									return a.id == id && AccountFilters::IsAccountUsable(a);
 								});
-								if (it != g_accounts.end()) { accounts.emplace_back(it->id, it->cookie); }
+								if (it != g_accounts.end()) {
+									accounts.push_back(AccountUtils::credentialsFromAccount(*it));
+								}
 							}
 							if (!accounts.empty()) {
 								thread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); }).detach();
@@ -556,12 +558,14 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 						};
 						menu.onLaunchInstance = [pid, jid = session.jobId]() {
 							if (pid == 0 || jid.empty() || g_selectedAccountIds.empty()) { return; }
-							vector<pair<int, string>> accounts;
+							vector<Roblox::HBA::AuthCredentials> accounts;
 							for (int id : g_selectedAccountIds) {
 								auto it = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) {
 									return a.id == id && AccountFilters::IsAccountUsable(a);
 								});
-								if (it != g_accounts.end()) { accounts.emplace_back(it->id, it->cookie); }
+								if (it != g_accounts.end()) {
+									accounts.push_back(AccountUtils::credentialsFromAccount(*it));
+								}
 							}
 							if (!accounts.empty()) {
 								thread([pid, jid, accounts]() { launchRobloxSequential(pid, jid, accounts); }).detach();

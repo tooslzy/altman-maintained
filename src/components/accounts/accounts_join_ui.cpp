@@ -301,11 +301,11 @@ void RenderJoinOptions() {
 
 			if (join_type_combo_index == 2) {
 				string userInput = join_value_buf;
-				vector<pair<int, string>> accounts;
+				vector<Roblox::HBA::AuthCredentials> accounts;
 				for (int id : g_selectedAccountIds) {
 					auto it = std::find_if(g_accounts.begin(), g_accounts.end(), [id](auto &a) { return a.id == id; });
 					if (it != g_accounts.end() && AccountFilters::IsAccountUsable(*it)) {
-						accounts.emplace_back(it->id, it->cookie);
+						accounts.push_back(AccountUtils::credentialsFromAccount(*it));
 					}
 				}
 				if (accounts.empty()) { return; }
@@ -323,7 +323,7 @@ void RenderJoinOptions() {
 						} else {
 							uid = Roblox::getUserIdFromUsername(spec.username);
 						}
-						auto pres = Roblox::getPresences({uid}, accounts.front().second);
+						auto pres = Roblox::getPresences({uid}, accounts.front().toAuthConfig());
 						auto it = pres.find(uid);
 						if (it == pres.end() || it->second.presence != "InGame" || it->second.placeId == 0
 							|| it->second.jobId.empty()) {
@@ -360,11 +360,11 @@ void RenderJoinOptions() {
 				return;
 			}
 
-			std::vector<std::pair<int, std::string>> accounts;
+			std::vector<Roblox::HBA::AuthCredentials> accounts;
 			for (int id : g_selectedAccountIds) {
 				auto it = std::find_if(g_accounts.begin(), g_accounts.end(), [id](auto &a) { return a.id == id; });
 				if (it != g_accounts.end() && AccountFilters::IsAccountUsable(*it)) {
-					accounts.emplace_back(it->id, it->cookie);
+					accounts.push_back(AccountUtils::credentialsFromAccount(*it));
 				}
 			}
 

@@ -74,6 +74,28 @@ namespace Roblox { namespace HBA {
 	};
 
 	/**
+	 * Lightweight credentials struct for passing auth info without full AccountData.
+	 * Used for launching games, API calls, etc.
+	 */
+	struct AuthCredentials {
+			int accountId = 0;
+			std::string cookie;
+			std::string hbaPrivateKey;
+			bool hbaEnabled = true;
+
+			bool hasHBA() const { return hbaEnabled && !hbaPrivateKey.empty(); }
+
+			// Convert to AuthConfig for API calls
+			AuthConfig toAuthConfig() const {
+				return AuthConfig {
+					.cookie = cookie,
+					.hbaPrivateKey = hbaPrivateKey,
+					.hbaEnabled = hbaEnabled && !hbaPrivateKey.empty()
+				};
+			}
+	};
+
+	/**
 	 * Constants for BAT generation
 	 */
 	namespace Constants {

@@ -1,6 +1,7 @@
 #include "friends_actions.h"
 #include "core/status.h"
 #include "network/roblox.h"
+#include "network/roblox/hba.h"
 #include <algorithm>
 #include <atomic>
 #include <string>
@@ -25,14 +26,14 @@ namespace FriendsActions {
 	void RefreshFullFriendsList(
 		int accountId,
 		const string &userId,
-		const string &cookie,
+		const Roblox::HBA::AuthCredentials &creds,
 		vector<FriendInfo> &outFriendsList,
 		atomic<bool> &loadingFlag
 	) {
 		loadingFlag = true;
 		LOG_INFO("Fetching friends list...");
 
-		auto list = Roblox::getFriends(userId, cookie);
+		auto list = Roblox::getFriends(userId, creds.toAuthConfig());
 
 		vector<uint64_t> ids;
 		ids.reserve(list.size());
@@ -48,7 +49,7 @@ namespace FriendsActions {
 
 			if (batch_ids.empty()) { continue; }
 
-			auto presMap = Roblox::getPresences(batch_ids, cookie);
+			auto presMap = Roblox::getPresences(batch_ids, creds.toAuthConfig());
 
 			for (const auto &[uid, pdata] : presMap) {
 				auto it = find_if(list.begin(), list.end(), [&](const FriendInfo &f) { return f.id == uid; });
@@ -144,13 +145,13 @@ namespace FriendsActions {
 
 	void FetchFriendDetails(
 		const string &friendId,
-		const string &cookie,
+		const Roblox::HBA::AuthCredentials &creds,
 		Roblox::FriendDetail &outFriendDetail,
 		atomic<bool> &loadingFlag
 	) {
 		loadingFlag = true;
 		LOG_INFO("Fetching friend details...");
-		outFriendDetail = Roblox::getUserDetails(friendId, cookie);
+		outFriendDetail = Roblox::getUserDetails(friendId, creds.toAuthConfig());
 		loadingFlag = false;
 		LOG_INFO("Friend details loaded.");
 	}

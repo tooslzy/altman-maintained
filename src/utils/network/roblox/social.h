@@ -83,17 +83,13 @@ namespace Roblox {
 		return result;
 	}
 
-	static std::vector<FriendInfo> getFriends(const std::string &userId, const std::string &cookie) {
-		if (!canUseCookie(cookie)) { return {}; }
+	static std::vector<FriendInfo> getFriends(const std::string &userId, const HBA::AuthConfig &config) {
+		if (!canUseCookie(config.cookie)) { return {}; }
 
-		LOG_INFO("Fetching friends list");
+		LOG_INFO("Fetching friends list (HBA-enabled)");
 
-		HttpClient::Response resp = HttpClient::get(
-			"https://friends.roblox.com/v1/users/" + userId + "/friends",
-			{
-				{"Cookie", ".ROBLOSECURITY=" + cookie}
-		}
-		);
+		std::string url = "https://friends.roblox.com/v1/users/" + userId + "/friends";
+		HttpClient::Response resp = AuthenticatedHttp::get(url, config);
 
 		if (resp.status_code < 200 || resp.status_code >= 300) {
 			LOG_ERROR("Failed to fetch friends: HTTP " + std::to_string(resp.status_code));
@@ -143,6 +139,14 @@ namespace Roblox {
 		return friends;
 	}
 
+	/**
+	 * Get friends list (legacy, no HBA)
+	 */
+	static std::vector<FriendInfo> getFriends(const std::string &userId, const std::string &cookie) {
+		HBA::AuthConfig config {.cookie = cookie, .hbaPrivateKey = "", .hbaEnabled = false};
+		return getFriends(userId, config);
+	}
+
 	static FriendInfo getUserInfo(const std::string &userId) {
 		LOG_INFO("Fetching user info");
 		HttpClient::Response resp = HttpClient::get(
@@ -180,8 +184,8 @@ namespace Roblox {
 			std::string presence;
 	};
 
-	static FriendDetail getUserDetails(const std::string &userId, const std::string &cookie) {
-		if (!canUseCookie(cookie)) { return FriendDetail {}; }
+	static FriendDetail getUserDetails(const std::string &userId, const HBA::AuthConfig &config) {
+		if (!canUseCookie(config.cookie)) { return FriendDetail {}; }
 
 		FriendDetail d;
 		std::mutex m;
@@ -193,9 +197,10 @@ namespace Roblox {
 			if (--remaining == 0) { cv.notify_one(); }
 		};
 
-		Threading::newThread([&, userId] {
-			auto resp = HttpClient::get(
+		Threading::newThread([&, userId, config] {
+			auto resp = AuthenticatedHttp::get(
 				"https://users.roblox.com/v1/users/" + userId,
+				config,
 				{
 					{"Accept", "application/json"}
 			}
@@ -253,6 +258,14 @@ namespace Roblox {
 		return d;
 	}
 
+	/**
+	 * Get user details (legacy, no HBA)
+	 */
+	static FriendDetail getUserDetails(const std::string &userId, const std::string &cookie) {
+		HBA::AuthConfig config {.cookie = cookie, .hbaPrivateKey = "", .hbaEnabled = false};
+		return getUserDetails(userId, config);
+	}
+
 	struct IncomingFriendRequest {
 			uint64_t userId = 0;
 			std::string username;
@@ -270,19 +283,14 @@ namespace Roblox {
 	};
 
 	inline FriendRequestsPage
-		getIncomingFriendRequests(const std::string &cookie, const std::string &cursor = {}, int limit = 100) {
+		getIncomingFriendRequests(const HBA::AuthConfig &config, const std::string &cursor = {}, int limit = 100) {
 		FriendRequestsPage page;
-		if (!canUseCookie(cookie)) { return page; }
+		if (!canUseCookie(config.cookie)) { return page; }
 
 		std::string url = "https://friends.roblox.com/v1/my/friends/requests?limit=" + std::to_string(limit);
 		if (!cursor.empty()) { url += "&cursor=" + cursor; }
 
-		HttpClient::Response resp = HttpClient::get(
-			url,
-			{
-				{"Cookie", ".ROBLOSECURITY=" + cookie}
-		}
-		);
+		HttpClient::Response resp = AuthenticatedHttp::get(url, config);
 		if (resp.status_code < 200 || resp.status_code >= 300) {
 			LOG_ERROR("Failed to fetch incoming friend requests: HTTP " + std::to_string(resp.status_code));
 			return page;
@@ -367,6 +375,15 @@ namespace Roblox {
 			// Return whatever was safely parsed so far
 		}
 		return page;
+	}
+
+	/**
+	 * Get incoming friend requests (legacy, no HBA)
+	 */
+	inline FriendRequestsPage
+		getIncomingFriendRequests(const std::string &cookie, const std::string &cursor = {}, int limit = 100) {
+		HBA::AuthConfig config {.cookie = cookie, .hbaPrivateKey = "", .hbaEnabled = false};
+		return getIncomingFriendRequests(config, cursor, limit);
 	}
 
 	// ============================================================================

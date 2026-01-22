@@ -52,7 +52,7 @@ static int g_selectedRequestIdx = -1;
 static Roblox::FriendDetail g_selectedRequestDetail;
 static atomic<bool> g_requestDetailsLoading {false};
 
-static inline void LoadIncomingRequests(const string &cookie, bool reset) {
+static inline void LoadIncomingRequests(const Roblox::HBA::AuthCredentials &creds, bool reset) {
 	if (g_incomingRequestsLoading.load()) { return; }
 	if (reset) {
 		std::lock_guard<std::mutex> lk(g_incomingReqMutex);
@@ -67,8 +67,8 @@ static inline void LoadIncomingRequests(const string &cookie, bool reset) {
 		std::lock_guard<std::mutex> lk(g_incomingReqMutex);
 		cursor = g_incomingReqNextCursor;
 	}
-	Threading::newThread([cookie, cursor]() {
-		auto page = Roblox::getIncomingFriendRequests(cookie, cursor, 100);
+	Threading::newThread([creds, cursor]() {
+		auto page = Roblox::getIncomingFriendRequests(creds.toAuthConfig(), cursor, 100);
 		{
 			std::lock_guard<std::mutex> lk(g_incomingReqMutex);
 			for (auto &r : page.data) { g_incomingRequests.push_back(std::move(r)); }
@@ -194,15 +194,16 @@ void RenderFriendsTab() {
 		g_requestDetailsLoading = false;
 
 		if (!acct.userId.empty()) {
+			auto creds = AccountUtils::credentialsFromAccount(acct);
 			Threading::newThread(
 				FriendsActions::RefreshFullFriendsList,
 				acct.id,
 				acct.userId,
-				acct.cookie,
+				creds,
 				ref(g_friends),
 				ref(g_friendsLoading)
 			);
-			if (g_friendsViewMode == 1) { LoadIncomingRequests(acct.cookie, true); }
+			if (g_friendsViewMode == 1) { LoadIncomingRequests(creds, true); }
 		}
 	}
 	{
@@ -275,7 +276,7 @@ void RenderFriendsTab() {
 			g_selectedFriendIdx = -1;
 			g_selectedFriend = {};
 			g_selectedRequestIdx = -1;
-			if (g_friendsViewMode == 1) { LoadIncomingRequests(acct.cookie, true); }
+			if (g_friendsViewMode == 1) { LoadIncomingRequests(AccountUtils::credentialsFromAccount(acct), true); }
 		}
 	}
 
@@ -288,12 +289,12 @@ void RenderFriendsTab() {
 				FriendsActions::RefreshFullFriendsList,
 				acct.id,
 				acct.userId,
-				acct.cookie,
+				AccountUtils::credentialsFromAccount(acct),
 				ref(g_friends),
 				ref(g_friendsLoading)
 			);
 		} else {
-			LoadIncomingRequests(acct.cookie, true);
+			LoadIncomingRequests(AccountUtils::credentialsFromAccount(acct), true);
 		}
 	}
 	SameLine();
@@ -354,13 +355,14 @@ void RenderFriendsTab() {
 			vector<UserSpecifier> specs;
 			string errTmp;
 			(void)parseMultiUserInput(input, specs, errTmp);
-			Threading::newThread([specs, cookie = acct.cookie]() {
+			auto creds = AccountUtils::credentialsFromAccount(acct);
+			Threading::newThread([specs, creds]() {
 				try {
 					int sent = 0;
 					for (const auto &sp : specs) {
 						uint64_t uid = sp.isId ? sp.id : Roblox::getUserIdFromUsername(sp.username);
 						string resp;
-						bool ok = Roblox::sendFriendRequest(to_string(uid), cookie, &resp);
+						bool ok = Roblox::sendFriendRequest(to_string(uid), creds.toAuthConfig(), &resp);
 						if (ok) {
 							++sent;
 							LOG_INFO("Friend request sent");
@@ -433,10 +435,10 @@ void RenderFriendsTab() {
 					PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.85f, 0.4f, 1.f));
 					if (MenuItem("Accept Request")) {
 						uint64_t uid = r.userId;
-						string cookieCopy = acct.cookie;
-						Threading::newThread([uid, cookieCopy]() {
+						auto creds = AccountUtils::credentialsFromAccount(acct);
+						Threading::newThread([uid, creds]() {
 							string resp;
-							bool ok = Roblox::acceptFriendRequest(to_string(uid), cookieCopy, &resp);
+							bool ok = Roblox::acceptFriendRequest(to_string(uid), creds.toAuthConfig(), &resp);
 							if (ok) {
 								std::lock_guard<std::mutex> lk(g_incomingReqMutex);
 								erase_if_local(g_incomingRequests, [&](const Roblox::IncomingFriendRequest &x) {
@@ -481,7 +483,7 @@ void RenderFriendsTab() {
 						Threading::newThread(
 							FriendsActions::FetchFriendDetails,
 							to_string(r.userId),
-							acct.cookie,
+							AccountUtils::credentialsFromAccount(acct),
 							ref(g_selectedRequestDetail),
 							ref(g_requestDetailsLoading)
 						);
@@ -493,7 +495,7 @@ void RenderFriendsTab() {
 			if (!nextCursorSnapshot.empty()) {
 				Spacing();
 				BeginDisabled(g_incomingRequestsLoading.load());
-				if (Button("Load More")) { LoadIncomingRequests(acct.cookie, false); }
+				if (Button("Load More")) { LoadIncomingRequests(AccountUtils::credentialsFromAccount(acct), false); }
 				EndDisabled();
 			}
 		}
@@ -777,12 +779,14 @@ void RenderFriendsTab() {
 					menu.jobId = f.jobId;
 					menu.onLaunchGame = [pid = f.placeId]() {
 						if (g_selectedAccountIds.empty()) { return; }
-						vector<pair<int, string>> accounts;
+						vector<Roblox::HBA::AuthCredentials> accounts;
 						for (int id : g_selectedAccountIds) {
 							auto itA = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) {
 								return a.id == id && AccountFilters::IsAccountUsable(a);
 							});
-							if (itA != g_accounts.end()) { accounts.emplace_back(itA->id, itA->cookie); }
+							if (itA != g_accounts.end()) {
+								accounts.push_back(AccountUtils::credentialsFromAccount(*itA));
+							}
 						}
 						if (!accounts.empty()) {
 							Threading::newThread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); });
@@ -790,12 +794,14 @@ void RenderFriendsTab() {
 					};
 					menu.onLaunchInstance = [row = f]() {
 						if (g_selectedAccountIds.empty()) { return; }
-						vector<pair<int, string>> accounts;
+						vector<Roblox::HBA::AuthCredentials> accounts;
 						for (int id : g_selectedAccountIds) {
 							auto itA = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) {
 								return a.id == id && AccountFilters::IsAccountUsable(a);
 							});
-							if (itA != g_accounts.end()) { accounts.emplace_back(itA->id, itA->cookie); }
+							if (itA != g_accounts.end()) {
+								accounts.push_back(AccountUtils::credentialsFromAccount(*itA));
+							}
 						}
 						if (!accounts.empty()) {
 							Threading::newThread([row, accounts]() {
@@ -814,12 +820,12 @@ void RenderFriendsTab() {
 					snprintf(buf, sizeof(buf), "Unfriend %s?", f.username.c_str());
 					FriendInfo fCopy = f;
 					uint64_t friendId = fCopy.id;
-					string cookieCopy = acct.cookie;
+					auto creds = AccountUtils::credentialsFromAccount(acct);
 					int acctIdCopy = acct.id;
-					ConfirmPopup::Add(buf, [fCopy, friendId, cookieCopy, acctIdCopy]() {
-						Threading::newThread([fCopy, friendId, cookieCopy, acctIdCopy]() {
+					ConfirmPopup::Add(buf, [fCopy, friendId, creds, acctIdCopy]() {
+						Threading::newThread([fCopy, friendId, creds, acctIdCopy]() {
 							string resp;
-							bool ok = Roblox::unfriend(to_string(friendId), cookieCopy, &resp);
+							bool ok = Roblox::unfriend(to_string(friendId), creds.toAuthConfig(), &resp);
 							if (ok) {
 								erase_if_local(g_friends, [&](const FriendInfo &fi) { return fi.id == friendId; });
 								if (g_selectedFriendIdx >= 0 && g_selectedFriendIdx < static_cast<int>(g_friends.size())
@@ -870,7 +876,7 @@ void RenderFriendsTab() {
 					Threading::newThread(
 						FriendsActions::FetchFriendDetails,
 						to_string(f.id),
-						acct.cookie,
+						AccountUtils::credentialsFromAccount(acct),
 						ref(g_selectedFriend),
 						ref(g_friendDetailsLoading)
 					);
@@ -913,10 +919,10 @@ void RenderFriendsTab() {
 					PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.85f, 0.4f, 1.f));
 					if (MenuItem("Add Friend")) {
 						uint64_t targetUserId = uf.id;
-						string cookieCopy = acct.cookie;
-						Threading::newThread([targetUserId, cookieCopy]() {
+						auto creds = AccountUtils::credentialsFromAccount(acct);
+						Threading::newThread([targetUserId, creds]() {
 							string resp;
-							bool ok = Roblox::sendFriendRequest(to_string(targetUserId), cookieCopy, &resp);
+							bool ok = Roblox::sendFriendRequest(to_string(targetUserId), creds.toAuthConfig(), &resp);
 							if (ok) {
 								LOG_INFO("Friend request sent");
 								cerr << "Friend request response: " << resp << "\n";
@@ -1102,12 +1108,12 @@ void RenderFriendsTab() {
 			bool canJoin = (row.presence == "InGame" && row.placeId && !row.jobId.empty());
 			BeginDisabled(!canJoin);
 			if (Button((string(ICON_JOIN) + " Launch Instance").c_str()) && canJoin) {
-				vector<pair<int, string>> accounts;
+				vector<Roblox::HBA::AuthCredentials> accounts;
 				for (int id : g_selectedAccountIds) {
 					auto it = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) {
 						return a.id == id && AccountFilters::IsAccountUsable(a);
 					});
-					if (it != g_accounts.end()) { accounts.emplace_back(it->id, it->cookie); }
+					if (it != g_accounts.end()) { accounts.push_back(AccountUtils::credentialsFromAccount(*it)); }
 				}
 				if (!accounts.empty()) {
 					Threading::newThread([row, accounts]() {

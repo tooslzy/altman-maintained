@@ -17,6 +17,7 @@
 #include "main_thread.h"
 #include "webview.hpp"
 
+#include "../../utils/core/account_utils.h"
 #include "core/logging.hpp"
 #include "core/status.h"
 #include "core/time_utils.h"
@@ -213,9 +214,9 @@ void RenderAccountsTable(vector<AccountData> &accounts_to_display, const char *t
 					&& s_voiceUpdateInProgress.count(account.id) == 0) {
 					s_voiceUpdateInProgress.insert(account.id);
 					int accId = account.id;
-					string cookie = account.cookie;
-					Threading::newThread([accId, cookie]() {
-						auto vs = Roblox::getVoiceChatStatus(cookie);
+					auto creds = AccountUtils::credentialsFromAccount(account);
+					Threading::newThread([accId, creds]() {
+						auto vs = Roblox::getVoiceChatStatus(creds.toAuthConfig());
 						MainThread::Post([accId, vs]() {
 							auto it = find_if(g_accounts.begin(), g_accounts.end(), [&](const AccountData &a) {
 								return a.id == accId;

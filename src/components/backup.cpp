@@ -75,10 +75,12 @@ bool Backup::Export(const std::string &password) {
 	json accounts = json::array();
 	for (const auto &acct : g_accounts) {
 		accounts.push_back({
-			{"id",		   acct.id		  },
-			{"cookie",	   acct.cookie	  },
-			{"note",		 acct.note	  },
-			{"isFavorite", acct.isFavorite}
+			{"id",			   acct.id			  },
+			{"cookie",		   acct.cookie		  },
+			{"note",			 acct.note		  },
+			{"isFavorite",	   acct.isFavorite	  },
+			{"hbaPrivateKey", acct.hbaPrivateKey},
+			{"hbaEnabled",	   acct.hbaEnabled	  }
 		});
 	}
 	j["accounts"] = std::move(accounts);
@@ -128,6 +130,8 @@ bool Backup::Import(const std::string &file, const std::string &password, std::s
 		acct.cookie = item.value("cookie", "");
 		acct.note = item.value("note", "");
 		acct.isFavorite = item.value("isFavorite", false);
+		acct.hbaPrivateKey = item.value("hbaPrivateKey", "");
+		acct.hbaEnabled = item.value("hbaEnabled", true);
 
 		// Validate cookie first to avoid multiple error messages
 		Roblox::BanCheckResult banStatus = Roblox::cachedBanStatus(acct.cookie);
@@ -136,10 +140,20 @@ bool Backup::Import(const std::string &file, const std::string &password, std::s
 			continue;
 		}
 
-		// Get user information
-		uint64_t uid = Roblox::getUserId(acct.cookie);
-		std::string username = Roblox::getUsername(acct.cookie);
-		std::string displayName = Roblox::getDisplayName(acct.cookie);
+		// Generate HBA keys first if not present, so we can use HBA for subsequent API calls
+		if (acct.hbaPrivateKey.empty() && acct.hbaEnabled) { AccountUtils::generateHBAKeys(acct); }
+
+		// Create auth config with HBA support
+		auto config = Roblox::HBA::AuthConfig {
+			.cookie = acct.cookie,
+			.hbaPrivateKey = acct.hbaPrivateKey,
+			.hbaEnabled = acct.hbaEnabled && !acct.hbaPrivateKey.empty()
+		};
+
+		// Get user information using HBA
+		uint64_t uid = Roblox::getUserId(config);
+		std::string username = Roblox::getUsername(config);
+		std::string displayName = Roblox::getDisplayName(config);
 
 		// Double-check that we got valid user data
 		if (uid == 0 || username.empty() || displayName.empty()) {
@@ -150,13 +164,10 @@ bool Backup::Import(const std::string &file, const std::string &password, std::s
 		acct.userId = std::to_string(uid);
 		acct.username = username;
 		acct.displayName = displayName;
-		acct.status = Roblox::getPresence(acct.cookie, uid);
-		auto vs = Roblox::getVoiceChatStatus(acct.cookie);
+		acct.status = Roblox::getPresence(config, uid);
+		auto vs = Roblox::getVoiceChatStatus(config);
 		acct.voiceStatus = vs.status;
 		acct.voiceBanExpiry = vs.bannedUntil;
-
-		// Generate HBA keys for the imported account
-		AccountUtils::generateHBAKeys(acct);
 
 		g_accounts.push_back(std::move(acct));
 	}
