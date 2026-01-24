@@ -300,18 +300,21 @@ bool RenderMainMenu() {
 							acct.status = "Banned";
 							acct.voiceStatus = "N/A";
 							acct.voiceBanExpiry = 0;
+							acct.ageGroup = "N/A";
 							continue;
 						}
 						if (banStatus == Roblox::BanCheckResult::Warned) {
 							acct.status = "Warned";
 							acct.voiceStatus = "N/A";
 							acct.voiceBanExpiry = 0;
+							acct.ageGroup = "N/A";
 							continue; // Skip processing like banned accounts
 						}
 						if (banStatus == Roblox::BanCheckResult::Terminated) {
 							acct.status = "Terminated";
 							acct.voiceStatus = "N/A";
 							acct.voiceBanExpiry = 0;
+							acct.ageGroup = "N/A";
 							continue;
 						}
 
@@ -335,6 +338,8 @@ bool RenderMainMenu() {
 								auto vs = Roblox::getVoiceChatStatus(config);
 								acct.voiceStatus = vs.status;
 								acct.voiceBanExpiry = vs.bannedUntil;
+								auto ageResult = Roblox::getAgeGroup(config);
+								acct.ageGroup = ageResult.ageGroup;
 							} catch (...) {
 								// leave as-is on error
 							}

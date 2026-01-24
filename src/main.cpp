@@ -234,18 +234,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					acct.banExpiry = banInfo.endDate;
 					acct.voiceStatus = "N/A";
 					acct.voiceBanExpiry = 0;
+					acct.ageGroup = "N/A";
 					continue;
 				} else if (banInfo.status == Roblox::BanCheckResult::Warned) {
 					acct.status = "Warned";
 					acct.banExpiry = 0;
 					acct.voiceStatus = "N/A";
 					acct.voiceBanExpiry = 0;
+					acct.ageGroup = "N/A";
 					continue; // Skip processing like banned accounts
 				} else if (banInfo.status == Roblox::BanCheckResult::Terminated) {
 					acct.status = "Terminated";
 					acct.banExpiry = 0;
 					acct.voiceStatus = "N/A";
 					acct.voiceBanExpiry = 0;
+					acct.ageGroup = "N/A";
 					continue;
 				} else if (banInfo.status == Roblox::BanCheckResult::Unbanned) {
 					// Get fresh data from authenticated endpoint
@@ -284,6 +287,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 							acct.voiceStatus = vs.status;
 							acct.voiceBanExpiry = vs.bannedUntil;
 							acct.banExpiry = 0;
+							auto ageResult = Roblox::getAgeGroup(config);
+							acct.ageGroup = ageResult.ageGroup;
 						} catch (const std::exception &e) {
 							LOG_ERROR("Error getting presence: " + std::string(e.what()));
 							acct.status = "Error";
@@ -303,6 +308,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 						acct.status = "Cookie Invalid";
 						acct.voiceStatus = "N/A";
 						acct.voiceBanExpiry = 0;
+						acct.ageGroup = "N/A";
 					} else {
 						acct.status = "Error: Invalid UserID";
 					}

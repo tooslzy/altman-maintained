@@ -168,6 +168,96 @@ namespace Roblox {
 		return {"Disabled", 0};
 	}
 
+	/**
+	 * Convert age group translation key to display string
+	 */
+	static std::string ageGroupKeyToDisplay(const std::string &key) {
+		if (key == "Label.AgeGroupUnder9") { return "<9"; }
+		if (key == "Label.AgeGroup9To12") { return "9-12"; }
+		if (key == "Label.AgeGroup13To15") { return "13-15"; }
+		if (key == "Label.AgeGroup16To17") { return "16-17"; }
+		if (key == "Label.AgeGroup18To20") { return "18-20"; }
+		if (key == "Label.AgeGroupOver21") { return "21+"; }
+		return "Unknown";
+	}
+
+	struct AgeGroupResult {
+			std::string ageGroup; // Display string like "<9", "9-12", etc.
+			bool success = false;
+	};
+
+	/**
+	 * Get account age group from Roblox API
+	 */
+	static AgeGroupResult getAgeGroup(const std::string &cookie) {
+		// First check if account is banned/warned/terminated
+		BanCheckResult status = cachedBanStatus(cookie);
+		if (status == BanCheckResult::Banned || status == BanCheckResult::Warned || status == BanCheckResult::Terminated
+			|| status == BanCheckResult::InvalidCookie) {
+			return {"N/A", false};
+		}
+
+		LOG_INFO("Fetching account age group");
+		auto resp = HttpClient::get(
+			"https://apis.roblox.com/user-settings-api/v1/account-insights/age-group",
+			{
+				{"Cookie", ".ROBLOSECURITY=" + cookie}
+		}
+		);
+
+		if (resp.status_code < 200 || resp.status_code >= 300) {
+			LOG_INFO("Failed to fetch age group: HTTP " + std::to_string(resp.status_code));
+			return {"Unknown", false};
+		}
+
+		try {
+			auto j = HttpClient::decode(resp);
+			std::string translationKey = j.value("ageGroupTranslationKey", "");
+			if (translationKey.empty()) {
+				LOG_INFO("Age group translation key is empty");
+				return {"Unknown", false};
+			}
+			return {ageGroupKeyToDisplay(translationKey), true};
+		} catch (const std::exception &e) {
+			LOG_ERROR("Failed to parse age group response: " + std::string(e.what()));
+			return {"Unknown", false};
+		}
+	}
+
+	/**
+	 * Get account age group with HBA support
+	 */
+	static AgeGroupResult getAgeGroup(const HBA::AuthConfig &config) {
+		// First check if account is banned/warned/terminated
+		BanCheckResult status = cachedBanStatus(config.cookie);
+		if (status == BanCheckResult::Banned || status == BanCheckResult::Warned || status == BanCheckResult::Terminated
+			|| status == BanCheckResult::InvalidCookie) {
+			return {"N/A", false};
+		}
+
+		LOG_INFO("Fetching account age group (HBA-enabled)");
+		auto resp
+			= AuthenticatedHttp::get("https://apis.roblox.com/user-settings-api/v1/account-insights/age-group", config);
+
+		if (resp.status_code < 200 || resp.status_code >= 300) {
+			LOG_INFO("Failed to fetch age group: HTTP " + std::to_string(resp.status_code));
+			return {"Unknown", false};
+		}
+
+		try {
+			auto j = HttpClient::decode(resp);
+			std::string translationKey = j.value("ageGroupTranslationKey", "");
+			if (translationKey.empty()) {
+				LOG_INFO("Age group translation key is empty");
+				return {"Unknown", false};
+			}
+			return {ageGroupKeyToDisplay(translationKey), true};
+		} catch (const std::exception &e) {
+			LOG_ERROR("Failed to parse age group response: " + std::string(e.what()));
+			return {"Unknown", false};
+		}
+	}
+
 	struct PresenceData {
 			std::string presence;
 			std::string lastLocation;

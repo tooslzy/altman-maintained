@@ -151,6 +151,7 @@ namespace Data {
 			account.username = item.value("username", "");
 			account.userId = item.value("userId", "");
 			account.status = item.value("status", "");
+			account.ageGroup = item.value("ageGroup", "");
 			account.voiceStatus = item.value("voiceStatus", "");
 			account.voiceBanExpiry = item.value("voiceBanExpiry", 0);
 			account.banExpiry = item.value("banExpiry", 0);
@@ -264,6 +265,7 @@ namespace Data {
 				{"username",		 account.username		 },
 				{"userId",		   account.userId		 },
 				{"status",		   account.status		 },
+				{"ageGroup",		 account.ageGroup		 },
 				{"voiceStatus",		account.voiceStatus   },
 				{"voiceBanExpiry",  account.voiceBanExpiry},
 				{"banExpiry",		  account.banExpiry	   },

@@ -37,7 +37,7 @@ static char s_urlBuffer[256] = "";
 static std::unordered_set<int> s_voiceUpdateInProgress;
 
 void RenderAccountsTable(vector<AccountData> &accounts_to_display, const char *table_id, float table_height) {
-	constexpr int column_count = 6;
+	constexpr int column_count = 7;
 	ImGuiTableFlags table_flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable
 								| ImGuiTableFlags_ScrollY | ImGuiTableFlags_Hideable | ImGuiTableFlags_Reorderable
 								| ImGuiTableFlags_ContextMenuInBody;
@@ -48,6 +48,7 @@ void RenderAccountsTable(vector<AccountData> &accounts_to_display, const char *t
 		TableSetupColumn("Display Name", ImGuiTableColumnFlags_WidthStretch, 1.0000f);
 		TableSetupColumn("Username", ImGuiTableColumnFlags_WidthStretch, 1.0000f);
 		TableSetupColumn("UserID", ImGuiTableColumnFlags_WidthStretch, 0.7000f);
+		TableSetupColumn("Age", ImGuiTableColumnFlags_WidthStretch, 0.3500f);
 		TableSetupColumn("Status", ImGuiTableColumnFlags_WidthStretch, 0.5000f);
 		TableSetupColumn("Voice", ImGuiTableColumnFlags_WidthStretch, 0.4500f);
 		TableSetupColumn("Note", ImGuiTableColumnFlags_WidthStretch, 2.0000f);
@@ -60,6 +61,8 @@ void RenderAccountsTable(vector<AccountData> &accounts_to_display, const char *t
 		TextUnformatted("Username");
 		TableNextColumn();
 		TextUnformatted("UserID");
+		TableNextColumn();
+		TextUnformatted("Age");
 		TableNextColumn();
 		TextUnformatted("Status");
 		TableNextColumn();
@@ -174,6 +177,7 @@ void RenderAccountsTable(vector<AccountData> &accounts_to_display, const char *t
 
 			render_centered_text_in_cell(account.username.c_str());
 			render_centered_text_in_cell(account.userId.c_str());
+			render_centered_text_in_cell(account.ageGroup.empty() ? "N/A" : account.ageGroup.c_str());
 
 			ImVec4 statusColor = getStatusColor(account.status);
 			TableNextColumn();
