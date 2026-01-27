@@ -187,6 +187,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	Data::LoadSettings("settings.json");
 	if (g_checkUpdatesOnStartup) { CheckForUpdates(); }
 	Data::LoadAccounts("accounts.json");
+	Data::LoadFavorites("favorites.json");
 	Data::LoadFriends("friends.json");
 
 	// Migrate existing accounts to HBA (generate keys if missing)

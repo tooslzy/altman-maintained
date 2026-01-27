@@ -1,6 +1,7 @@
 #include "accounts_join_ui.h"
 
 #include <algorithm>
+#include <cctype>
 #include <imgui.h>
 #include <stdexcept>
 #include <string>
@@ -87,6 +88,33 @@ void RenderJoinOptions() {
 	Spacing();
 	Combo(" Join Type", &join_type_combo_index, join_types_local, IM_ARRAYSIZE(join_types_local));
 
+	auto tryMatchFavorite = [&]() {
+		if (join_type_combo_index != 0) { return; }
+		std::string input = join_value_buf;
+		auto l = input.find_first_not_of(" \t\n\r");
+		auto r = input.find_last_not_of(" \t\n\r");
+		if (l == std::string::npos) {
+			input.clear();
+		} else {
+			input = input.substr(l, r - l + 1);
+		}
+		if (input.empty()) { return; }
+		bool numeric = std::all_of(input.begin(), input.end(), [](unsigned char c) { return c >= '0' && c <= '9'; });
+		if (numeric) { return; }
+
+		for (const auto &game : g_favorites) {
+			const std::string &name = game.name;
+			if (name.size() < input.size()) { continue; }
+			bool match = std::equal(input.begin(), input.end(), name.begin(), [](unsigned char a, unsigned char b) {
+				return std::tolower(a) == std::tolower(b);
+			});
+			if (match) {
+				snprintf(join_value_buf, sizeof(join_value_buf), "%llu", (unsigned long long)game.placeId);
+				break;
+			}
+		}
+	};
+
 	if (join_type_combo_index == 1) {
 		float w = GetContentRegionAvail().x;
 		float minField = GetFontSize() * 6.25f; // ~100px
@@ -118,7 +146,14 @@ void RenderJoinOptions() {
 			PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
 			PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 0.2f, 0.2f, 1.0f));
 		}
-		InputTextWithHint("##JoinPlaceId", "placeId", join_value_buf, IM_ARRAYSIZE(join_value_buf));
+		bool enterPressed = InputTextWithHint(
+			"##JoinPlaceId",
+			"placeId",
+			join_value_buf,
+			IM_ARRAYSIZE(join_value_buf),
+			ImGuiInputTextFlags_EnterReturnsTrue
+		);
+		if (enterPressed || ImGui::IsItemDeactivatedAfterEdit()) { tryMatchFavorite(); }
 		if (placeErr) {
 			PopStyleColor();
 			PopStyleVar();
@@ -211,12 +246,14 @@ void RenderJoinOptions() {
 			PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
 			PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 0.2f, 0.2f, 1.0f));
 		}
-		InputTextWithHint(
+		bool enterPressed = InputTextWithHint(
 			"##JoinValue",
 			GetJoinHintLocal(join_type_combo_index),
 			join_value_buf,
-			IM_ARRAYSIZE(join_value_buf)
+			IM_ARRAYSIZE(join_value_buf),
+			ImGuiInputTextFlags_EnterReturnsTrue
 		);
+		if (enterPressed || ImGui::IsItemDeactivatedAfterEdit()) { tryMatchFavorite(); }
 		if (showError) {
 			PopStyleColor();
 			PopStyleVar();
