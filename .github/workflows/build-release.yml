@@ -1,0 +1,59 @@
+name: Build and Release (Manual)
+
+on:
+    workflow_dispatch: {}
+
+permissions:
+    contents: write
+
+jobs:
+    build-and-release:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup MSVC
+              uses: ilammy/msvc-dev-cmd@v1
+
+            - name: Install CMake
+              uses: lukka/get-cmake@v3.30.4
+
+            - name: Install vcpkg
+              uses: lukka/run-vcpkg@v11
+              with:
+                  vcpkgGitCommitId: "e3f40fb7b6b9c9f9f2df9f3f0f2c6a1a2a1b9b4c"
+                  runVcpkgInstall: true
+                  vcpkgJsonGlob: "**/vcpkg.json"
+
+            - name: Configure
+              run: >
+                  cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}\scripts\buildsystems\vcpkg.cmake" -A x64 -DCMAKE_BUILD_TYPE=Release
+
+
+            - name: Build
+              run: cmake --build build --config Release -- /m
+
+            - name: Package
+              shell: pwsh
+              run: |
+                  $Commit = (git rev-parse --short HEAD).Trim()
+                  $OutDir = "dist\AltMan-$Commit"
+                  New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+                  Copy-Item -Path "build\altman\altman.exe" -Destination $OutDir -Force
+                  Copy-Item -Path "build\altman\assets" -Destination $OutDir -Recurse -Force
+                  Compress-Archive -Path $OutDir -DestinationPath "AltMan-$Commit.zip" -Force
+
+            - name: Create Release
+              shell: pwsh
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  $Commit = (git rev-parse --short HEAD).Trim()
+                  $Tag = "commit-$Commit"
+                  gh release create $Tag "AltMan-$Commit.zip" `
+                    --title "AltMan $Commit" `
+                    --notes "Automated release for commit $Commit."
