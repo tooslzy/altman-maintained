@@ -36,6 +36,10 @@ jobs:
                   git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
                   C:\vcpkg\bootstrap-vcpkg.bat
 
+            - name: Create vcpkg cache directory
+              run: New-Item -ItemType Directory -Force -Path "${{ env.VCPKG_DEFAULT_BINARY_CACHE }}"
+              shell: pwsh
+
             - name: Install dependencies
               run: C:\vcpkg\vcpkg.exe install --triplet x64-windows-static
 
