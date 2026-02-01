@@ -18,6 +18,7 @@
 #include <tchar.h>
 
 #include "components/data.h"
+#include <filesystem>
 #include "core/account_utils.h"
 #include "core/logging.hpp"
 #include "network/roblox.h"
@@ -171,6 +172,13 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
+
+	// Set working directory to the executable's directory
+	wchar_t exePath[MAX_PATH];
+	if (GetModuleFileNameW(nullptr, exePath, MAX_PATH)) {
+		std::error_code ec;
+		std::filesystem::current_path(std::filesystem::path(exePath).parent_path(), ec);
+	}
 
 	// Set DPI awareness first
 	SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
