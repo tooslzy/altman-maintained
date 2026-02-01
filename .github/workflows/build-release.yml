@@ -10,6 +10,10 @@ jobs:
     build-and-release:
         runs-on: windows-latest
 
+        env:
+            VCPKG_ROOT: C:\vcpkg
+            VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\.cache\vcpkg\archives
+
         steps:
             - name: Checkout
               uses: actions/checkout@v4
@@ -19,13 +23,21 @@ jobs:
             - name: Setup MSVC
               uses: ilammy/msvc-dev-cmd@v1
 
+            - name: Cache vcpkg binary packages
+              uses: actions/cache@v4
+              with:
+                  path: .cache\vcpkg\archives
+                  key: vcpkg-archives-${{ runner.os }}-x64-windows-static-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json', '**/vcpkg-lock.json') }}
+                  restore-keys: |
+                      vcpkg-archives-${{ runner.os }}-x64-windows-static-
+
             - name: Clone vcpkg
               run: |
-                  git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+                  git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
                   C:\vcpkg\bootstrap-vcpkg.bat
 
             - name: Install dependencies
-              run: C:\vcpkg\vcpkg.exe install --triplet x64-windows
+              run: C:\vcpkg\vcpkg.exe install --triplet x64-windows-static
 
             - name: Configure
               run: cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -A x64 -DCMAKE_BUILD_TYPE=Release
@@ -37,11 +49,11 @@ jobs:
               shell: pwsh
               run: |
                   $Commit = (git rev-parse --short HEAD).Trim()
-                  $OutDir = "dist\AltMan-$Commit"
-                  New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-                  Copy-Item -Path "build\altman\altman.exe" -Destination $OutDir -Force
-                  Copy-Item -Path "build\altman\assets" -Destination $OutDir -Recurse -Force
-                  Compress-Archive -Path $OutDir -DestinationPath "AltMan-$Commit.zip" -Force
+                  $ReleaseDir = "build\altman\Release"
+                  if (-not (Test-Path $ReleaseDir)) { throw "Release folder not found: $ReleaseDir" }
+
+                  $Zip = "AltMan-$Commit.zip"
+                  Compress-Archive -Path (Join-Path $ReleaseDir '*') -DestinationPath $Zip -Force
 
             - name: Create Release
               shell: pwsh
