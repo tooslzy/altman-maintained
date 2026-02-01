@@ -52,20 +52,19 @@ jobs:
             - name: Package
               shell: pwsh
               run: |
-                  $Commit = (git rev-parse --short HEAD).Trim()
+                  $Timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
                   $ReleaseDir = "build\altman\Release"
                   if (-not (Test-Path $ReleaseDir)) { throw "Release folder not found: $ReleaseDir" }
 
-                  $Zip = "AltMan-$Commit.zip"
-                  Compress-Archive -Path (Join-Path $ReleaseDir '*') -DestinationPath $Zip -Force
+                  Compress-Archive -Path (Join-Path $ReleaseDir '*') -DestinationPath "altman.zip" -Force
+                  echo "RELEASE_TIMESTAMP=$Timestamp" >> $env:GITHUB_ENV
 
             - name: Create Release
               shell: pwsh
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                  $Commit = (git rev-parse --short HEAD).Trim()
-                  $Tag = "commit-$Commit"
-                  gh release create $Tag "AltMan-$Commit.zip" `
-                    --title "AltMan $Commit" `
-                    --notes "Automated release for commit $Commit."
+                  $Timestamp = $env:RELEASE_TIMESTAMP
+                  $Tag = "$Timestamp"
+                  gh release create $Tag "altman.zip" `
+                    --title "AltMan $Timestamp"
