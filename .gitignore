@@ -20,6 +20,7 @@ altman-release
 
 # AI stuff
 /PLAN.md
+/agent-resources/
 
 # CMake generated files
 CMakeCache.txt

@@ -3,15 +3,17 @@ setlocal EnableDelayedExpansion
 
 cd /d "%~dp0"
 
-set "CLEAN="
-set /p "CLEAN=Do a clean build (delete .\build)? [y/N] "
+if exist .\build (
+	set "CLEAN="
+	set /p "CLEAN=Do a clean build (delete .\build)? [y/N] "
 
-if /i "%CLEAN%"=="y" (
-	del /f /s /q .\vcpkg_installed >nul 2>nul
-	rmdir /s /q .\vcpkg_installed >nul 2>nul
+	if /i "%CLEAN%"=="y" (
+		del /f /s /q .\vcpkg_installed >nul 2>nul
+		rmdir /s /q .\vcpkg_installed >nul 2>nul
 
-	del /f /s /q .\build >nul 2>nul
-	rmdir /s /q .\build >nul 2>nul
+		del /f /s /q .\build >nul 2>nul
+		rmdir /s /q .\build >nul 2>nul
+	)
 )
 
 mkdir build >nul 2>nul
