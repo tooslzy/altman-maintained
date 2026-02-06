@@ -84,29 +84,34 @@ git clone https://github.com/microsoft/vcpkg.git %USERPROFILE%\vcpkg
 %USERPROFILE%\vcpkg\bootstrap-vcpkg.bat
 ```
 
-### 3. Install dependencies
+### 3. Build
 
-The project ships with a `vcpkg.json` manifest. With vcpkg on your `%PATH%` simply run:
+The easiest way to build is to run the provided batch script:
 
 ```bat
-%USERPROFILE%\vcpkg\vcpkg.exe install
+build.cmd
 ```
 
-(If you skip this step vcpkg will build the ports automatically the first time CMake configures.)
-
-### 4. Build with plain CMake (command-line)
+Or run these commands manually:
 
 ```bat
-mkdir build
+# Install dependencies
+%USERPROFILE%\vcpkg\vcpkg.exe install --triplet x64-windows-static
+
+# Configure
 cmake -B build -S . ^
   -DCMAKE_TOOLCHAIN_FILE=%USERPROFILE%\vcpkg\scripts\buildsystems\vcpkg.cmake ^
-  -A x64 -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release -- /m
+  -A x64 ^
+  -DVCPKG_TARGET_TRIPLET=x64-windows-static ^
+  -DCMAKE_BUILD_TYPE=Release
+
+# Build
+cmake --build build --config Release --parallel
 ```
 
 The executable will be generated at `build\altman\altman.exe` together with the required `assets` folder.
 
-### 5. (Optional) Build from CLion
+### 4. (Optional) Build from CLion
 
 1. Open the project folder in CLion.
 2. Go to **File ▸ Settings ▸ Build, Execution, Deployment ▸ CMake** and add\

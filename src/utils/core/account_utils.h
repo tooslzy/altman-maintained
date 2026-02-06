@@ -71,7 +71,8 @@ namespace AccountUtils {
 			.accountId = account.id,
 			.cookie = account.cookie,
 			.hbaPrivateKey = account.hbaPrivateKey,
-			.hbaEnabled = account.hbaEnabled
+			.hbaEnabled = account.hbaEnabled,
+			.browserTrackerId = account.browserTrackerId,
 		};
 	}
 

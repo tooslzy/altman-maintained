@@ -9,6 +9,7 @@ if exist .\build (
 
 	if /i "!CLEAN!"=="y" (
 		echo Cleaning previous build artifacts...
+
 		del /f /s /q .\vcpkg_installed >nul 2>nul
 		rmdir /s /q .\vcpkg_installed >nul 2>nul
 
@@ -17,7 +18,9 @@ if exist .\build (
 	)
 )
 
-if not exist build mkdir build
+if not exist .\build (
+	mkdir build >nul 2>nul
+)
 
 if not exist %USERPROFILE%\vcpkg\vcpkg.exe (
 	echo %USERPROFILE%\vcpkg\vcpkg.exe not found.

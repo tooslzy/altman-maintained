@@ -1,7 +1,7 @@
 #pragma once
 
 #include "data.h"
-#include "ui/webview.hpp"
+#include "../utils/ui/webview.hpp"
 #include <string>
 
 inline void LaunchWebview(const std::string &url, const AccountData &account) {

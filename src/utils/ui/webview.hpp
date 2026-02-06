@@ -46,7 +46,10 @@ class WebViewWindow {
 		std::wstring cookieValue_;
 		std::wstring userDataFolder_;
 
-		std::function<void(const std::string &)> onCookieExtracted_;
+		// Called when auth monitoring succeeds.
+		// First arg: .ROBLOSECURITY cookie value (UTF-8)
+		// Second arg: Browser Tracker ID (as digits), or empty if not found.
+		std::function<void(const std::string &, const std::string &)> onAuthExtracted_;
 		std::function<void(const std::string &)> onNavigationCompleted_;
 		bool shouldMonitorAuth_ = false;
 
@@ -89,9 +92,9 @@ class WebViewWindow {
 			if (hwnd_) { DestroyWindow(hwnd_); }
 		}
 
-		void enableAuthMonitoring(std::function<void(const std::string &)> onSuccess) {
+		void enableAuthMonitoring(std::function<void(const std::string &, const std::string &)> onSuccess) {
 			shouldMonitorAuth_ = true;
-			onCookieExtracted_ = std::move(onSuccess);
+			onAuthExtracted_ = std::move(onSuccess);
 		}
 
 		void close() {
@@ -258,7 +261,7 @@ class WebViewWindow {
 							sender->get_Source(&uri);
 							std::wstring url(uri.get());
 
-							if (url.find(L"roblox.com/home") != std::wstring::npos) { extractAuthCookie(); }
+							if (url.find(L"roblox.com/home") != std::wstring::npos) { extractAuthCookieAndBrowserTrackerId(); }
 						}
 
 						return S_OK;
@@ -268,9 +271,44 @@ class WebViewWindow {
 			);
 		}
 
-		void extractAuthCookie() {
+		static std::string ExtractBrowserTrackerIdFromCookieString(const std::string &cookieString) {
+			// Mirrors:
+			// const match = document.cookie.match(/rbxid=(\d+)(.*browserid=(\d+))?/)
+			// const broswerTrackerID = match[3] ? Number.parseInt(match[3].trim(), 10) : undefined
+			//
+			// We only return the trailing browserid digits (match[3]) when present.
+			// If not present, return empty string.
+			auto isDigit = [](unsigned char c) { return c >= '0' && c <= '9'; };
+
+			const std::string key1 = "rbxid=";
+			size_t p = cookieString.find(key1);
+			if (p == std::string::npos) { return {}; }
+			p += key1.size();
+
+			// Must have at least one digit for rbxid, per regex.
+			if (p >= cookieString.size() || !isDigit(static_cast<unsigned char>(cookieString[p]))) { return {}; }
+			while (p < cookieString.size() && isDigit(static_cast<unsigned char>(cookieString[p]))) { ++p; }
+
+			// Optional: .*browserid=(\d+)
+			const std::string key2 = "browserid=";
+			size_t q = cookieString.find(key2, p);
+			if (q == std::string::npos) { return {}; }
+			q += key2.size();
+
+			// Allow optional whitespace before digits (JS trims).
+			while (q < cookieString.size() && (cookieString[q] == ' ' || cookieString[q] == '\t')) { ++q; }
+
+			size_t start = q;
+			while (q < cookieString.size() && isDigit(static_cast<unsigned char>(cookieString[q]))) { ++q; }
+
+			if (q == start) { return {}; }
+			return cookieString.substr(start, q - start);
+		}
+
+		void extractAuthCookieAndBrowserTrackerId() {
 			if (!webview_) { return; }
 
+			// 1) Pull .ROBLOSECURITY via CookieManager (as before)
 			ComPtr<ICoreWebView2_2> webview2_2;
 			if (FAILED(webview_.As(&webview2_2))) { return; }
 
@@ -297,18 +335,19 @@ class WebViewWindow {
 								wil::unique_cotaskmem_string value;
 								cookie->get_Value(&value);
 
-								if (onCookieExtracted_) {
-									int len = WideCharToMultiByte(
-										CP_UTF8,
-										0,
-										value.get(),
-										-1,
-										nullptr,
-										0,
-										nullptr,
-										nullptr
-									);
-									std::string cookieUtf8(len - 1, '\0');
+								// Convert cookie value to UTF-8
+								int len = WideCharToMultiByte(
+									CP_UTF8,
+									0,
+									value.get(),
+									-1,
+									nullptr,
+									0,
+									nullptr,
+									nullptr
+								);
+								std::string cookieUtf8(len > 0 ? (len - 1) : 0, '\0');
+								if (len > 0) {
 									WideCharToMultiByte(
 										CP_UTF8,
 										0,
@@ -319,11 +358,68 @@ class WebViewWindow {
 										nullptr,
 										nullptr
 									);
-
-									onCookieExtracted_(cookieUtf8);
 								}
 
-								close();
+								// 2) After login, capture Browser Tracker ID using the same logic as the requested JS snippet.
+								// We do this by reading document.cookie and extracting browserid=... if present.
+								if (webview_) {
+									webview_->ExecuteScript(
+										L"(function(){try{return document.cookie||\"\";}catch(e){return \"\";}})();",
+										Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
+											[this, cookieUtf8](HRESULT err, LPCWSTR resultJson) -> HRESULT {
+												std::string browserTrackerId;
+
+												if (SUCCEEDED(err) && resultJson) {
+													// resultJson is a JSON string (quoted) or "null"
+													std::wstring ws(resultJson);
+													if (ws.size() >= 2 && ws.front() == L'\"' && ws.back() == L'\"') {
+														// Minimal JSON string unescape sufficient for cookie strings.
+														std::string s;
+														s.reserve(ws.size());
+														for (size_t i = 1; i + 1 < ws.size(); ++i) {
+															wchar_t ch = ws[i];
+															if (ch == L'\\' && i + 1 < ws.size()) {
+																wchar_t n = ws[++i];
+																switch (n) {
+																case L'\"': ch = L'\"'; break;
+																case L'\\': ch = L'\\'; break;
+																case L'/': ch = L'/'; break;
+																case L'b': ch = L'\b'; break;
+																case L'f': ch = L'\f'; break;
+																case L'n': ch = L'\n'; break;
+																case L'r': ch = L'\r'; break;
+																case L't': ch = L'\t'; break;
+																default:
+																	// For unexpected escapes, keep the escaped char as-is.
+																	ch = n;
+																	break;
+																}
+															}
+															if (ch <= 0x7F) {
+																s.push_back(static_cast<char>(ch));
+															} else {
+																// Non-ASCII is unlikely in cookie key/value; skip best-effort.
+															}
+														}
+
+														browserTrackerId = ExtractBrowserTrackerIdFromCookieString(s);
+													}
+												}
+
+												if (onAuthExtracted_) {
+													onAuthExtracted_(cookieUtf8, browserTrackerId);
+												}
+												close();
+												return S_OK;
+											}
+										).Get()
+									);
+								} else {
+									// No webview - just return cookie
+									if (onAuthExtracted_) { onAuthExtracted_(cookieUtf8, ""); }
+									close();
+								}
+
 								break;
 							}
 						}

@@ -161,6 +161,7 @@ namespace Data {
 			account.placeId = item.value("placeId", 0ULL);
 			account.jobId = item.value("jobId", "");
 			account.hbaEnabled = item.value("hbaEnabled", true);
+			account.browserTrackerId = item.value("browserTrackerId", "");
 
 			// Load encrypted HBA private key
 			if (item.contains("encryptedHbaKey")) {
@@ -276,7 +277,8 @@ namespace Data {
 				{"placeId",			account.placeId	   },
 				{"jobId",			  account.jobId		   },
 				{"encryptedHbaKey", b64EncryptedHbaKey	  },
-				{"hbaEnabled",	   account.hbaEnabled	 }
+				{"hbaEnabled",	   account.hbaEnabled	 },
+				{"browserTrackerId", account.browserTrackerId}
 			});
 		}
 		out << dataArray.dump(4);

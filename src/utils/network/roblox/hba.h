@@ -83,6 +83,10 @@ namespace Roblox { namespace HBA {
 			std::string hbaPrivateKey;
 			bool hbaEnabled = true;
 
+			// Not encrypted; used by some features that need a stable browser identity.
+			// Empty means unknown/not provided.
+			std::string browserTrackerId;
+
 			bool hasHBA() const { return hbaEnabled && !hbaPrivateKey.empty(); }
 
 			// Convert to AuthConfig for API calls

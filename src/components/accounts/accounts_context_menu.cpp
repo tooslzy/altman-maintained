@@ -194,7 +194,10 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 							for (const auto &creds : accs) {
 								string ticket = Roblox::fetchAuthTicket(creds.toAuthConfig());
 								if (ticket.empty()) { continue; }
-								string browserTracker = to_string(d1(rng)) + to_string(d2(rng));
+								// Prefer the per-account Browser Tracker ID if present; otherwise fall back to a random value.
+								string browserTracker = !creds.browserTrackerId.empty()
+														  ? creds.browserTrackerId
+														  : (to_string(d1(rng)) + to_string(d2(rng)));
 								string placeLauncherUrl
 									= "https://assetgame.roblox.com/game/PlaceLauncher.ashx?request=RequestGame%26placeId="
 									+ place_id_str;
@@ -238,7 +241,10 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 											  .count();
 							thread_local mt19937_64 rng {random_device {}()};
 							static uniform_int_distribution<int> d1(100000, 130000), d2(100000, 900000);
-							string browserTracker = to_string(d1(rng)) + to_string(d2(rng));
+							// Prefer the per-account Browser Tracker ID if present; otherwise fall back to a random value.
+							string browserTracker = !creds.browserTrackerId.empty()
+													  ? creds.browserTrackerId
+													  : (to_string(d1(rng)) + to_string(d2(rng)));
 							string ticket = Roblox::fetchAuthTicket(creds.toAuthConfig());
 							if (ticket.empty()) { return; }
 							string placeLauncherUrl
