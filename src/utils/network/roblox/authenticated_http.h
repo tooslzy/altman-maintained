@@ -26,10 +26,7 @@ namespace Roblox { namespace AuthenticatedHttp {
 
 		// Add cookie
 		if (!config.cookie.empty()) {
-			std::string cookieHeader = ".ROBLOSECURITY=" + config.cookie;
-			if (!config.rbxEventTrackerCookie.empty()) {
-				cookieHeader += "; RBXEventTrackerV2=" + config.rbxEventTrackerCookie;
-			}
+			std::string cookieHeader = ".ROBLOSECURITY=" + config.cookie + "; RBXEventTrackerV2=browserid=1";
 			headers["Cookie"] = cookieHeader;
 		}
 
@@ -63,10 +60,7 @@ namespace Roblox { namespace AuthenticatedHttp {
 
 		// Add cookie
 		if (!config.cookie.empty()) {
-			std::string cookieHeader = ".ROBLOSECURITY=" + config.cookie;
-			if (!config.rbxEventTrackerCookie.empty()) {
-				cookieHeader += "; RBXEventTrackerV2=" + config.rbxEventTrackerCookie;
-			}
+			std::string cookieHeader = ".ROBLOSECURITY=" + config.cookie + "; RBXEventTrackerV2=browserid=1";
 			headers["Cookie"] = cookieHeader;
 		}
 
@@ -121,10 +115,7 @@ namespace Roblox { namespace AuthenticatedHttp {
 
 		// Add cookie
 		if (!config.cookie.empty()) {
-			std::string cookieHeader = ".ROBLOSECURITY=" + config.cookie;
-			if (!config.rbxEventTrackerCookie.empty()) {
-				cookieHeader += "; RBXEventTrackerV2=" + config.rbxEventTrackerCookie;
-			}
+			std::string cookieHeader = ".ROBLOSECURITY=" + config.cookie + "; RBXEventTrackerV2=browserid=1";
 			headers["Cookie"] = cookieHeader;
 		}
 

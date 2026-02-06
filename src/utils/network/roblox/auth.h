@@ -263,14 +263,12 @@ namespace Roblox {
 	static HBA::AuthConfig makeAuthConfig(
 		const std::string &cookie,
 		const std::string &hbaPrivateKey = "",
-		bool hbaEnabled = true,
-		const std::string &rbxEventTrackerCookie = ""
+		bool hbaEnabled = true
 	) {
 		return HBA::AuthConfig {
 			.cookie = cookie,
 			.hbaPrivateKey = hbaPrivateKey,
-			.hbaEnabled = hbaEnabled && !hbaPrivateKey.empty(),
-			.rbxEventTrackerCookie = rbxEventTrackerCookie
+			.hbaEnabled = hbaEnabled && !hbaPrivateKey.empty()
 		};
 	}
 

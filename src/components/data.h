@@ -29,11 +29,6 @@ struct AccountData {
 		uint64_t placeId = 0;
 		std::string jobId;
 
-		// Not encrypted (used by some features)
-		// Full RBXEventTrackerV2 cookie value (e.g., "CreateDate=...&rbxid=...&browserid=...")
-		// Empty means unknown/not provided.
-		std::string rbxEventTrackerCookie;
-
 		// HBA (Hardware-Backed Authentication) fields
 		std::string hbaPrivateKey; // PEM-encoded ECDSA P-256 private key (encrypted at rest)
 		bool hbaEnabled = true; // Whether to use BAT for this account

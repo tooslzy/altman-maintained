@@ -161,7 +161,6 @@ namespace Data {
 			account.placeId = item.value("placeId", 0ULL);
 			account.jobId = item.value("jobId", "");
 			account.hbaEnabled = item.value("hbaEnabled", true);
-			account.rbxEventTrackerCookie = item.value("rbxEventTrackerCookie", "");
 
 			// Load encrypted HBA private key
 			if (item.contains("encryptedHbaKey")) {
@@ -277,8 +276,7 @@ namespace Data {
 				{"placeId",				account.placeId			   },
 				{"jobId",				  account.jobId				   },
 				{"encryptedHbaKey",		b64EncryptedHbaKey			  },
-				{"hbaEnabled",			   account.hbaEnabled			 },
-				{"rbxEventTrackerCookie", account.rbxEventTrackerCookie}
+				{"hbaEnabled",			   account.hbaEnabled			 }
 			});
 		}
 		out << dataArray.dump(4);

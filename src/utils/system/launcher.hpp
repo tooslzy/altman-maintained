@@ -16,33 +16,6 @@
 #include "roblox_control.h"
 #include "ui/notifications.h"
 
-// Extracts the browserid numeric value from an RBXEventTrackerV2 cookie value.
-// Used only for the legacy launch URI which requires digits.
-static std::string ExtractBrowserIdFromTrackerCookie(const std::string &trackerCookie) {
-	auto isDigit = [](unsigned char c) { return c >= '0' && c <= '9'; };
-
-	const std::string key = "browserid=";
-	size_t pos = trackerCookie.find(key);
-	if (pos == std::string::npos) { return {}; }
-	pos += key.size();
-
-	// Skip optional whitespace
-	while (pos < trackerCookie.size() && (trackerCookie[pos] == ' ' || trackerCookie[pos] == '\t')) { ++pos; }
-
-	size_t start = pos;
-	while (pos < trackerCookie.size() && isDigit(static_cast<unsigned char>(trackerCookie[pos]))) { ++pos; }
-
-	if (pos == start) { return {}; }
-	return trackerCookie.substr(start, pos - start);
-}
-
-// Generate a random browser tracker ID as a fallback
-static std::string GenerateRandomBrowserTrackerId() {
-	thread_local std::mt19937_64 rng {std::random_device {}()};
-	static std::uniform_int_distribution<int> d1(100000, 130000), d2(100000, 900000);
-	return std::to_string(d1(rng)) + std::to_string(d2(rng));
-}
-
 static std::string urlEncode(const std::string &s) {
 	std::ostringstream out;
 	out << std::hex << std::uppercase;
@@ -81,9 +54,8 @@ inline HANDLE startRoblox(uint64_t placeId, const std::string &jobId, const Robl
 	std::ostringstream ts;
 	ts << nowMs;
 
-	// Extract browserid digits from RBXEventTrackerV2 cookie, or fall back to random
-	std::string browserTrackerId = ExtractBrowserIdFromTrackerCookie(creds.rbxEventTrackerCookie);
-	if (browserTrackerId.empty()) { browserTrackerId = GenerateRandomBrowserTrackerId(); }
+	// Hardcoded browser tracker ID
+	std::string browserTrackerId = "1";
 
 	std::string placeLauncherUrl = "https://assetgame.roblox.com/game/PlaceLauncher.ashx?"
 								   "request=RequestGameJob"

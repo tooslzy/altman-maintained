@@ -47,10 +47,8 @@ class WebViewWindow {
 		std::wstring userDataFolder_;
 
 		// Called when auth monitoring succeeds.
-		// First arg: .ROBLOSECURITY cookie value (UTF-8)
-		// Second arg: Full RBXEventTrackerV2 cookie value (e.g., "CreateDate=...&rbxid=...&browserid=..."), or empty if
-		// not found.
-		std::function<void(const std::string &, const std::string &)> onAuthExtracted_;
+		// Arg: .ROBLOSECURITY cookie value (UTF-8)
+		std::function<void(const std::string &)> onAuthExtracted_;
 		std::function<void(const std::string &)> onNavigationCompleted_;
 		bool shouldMonitorAuth_ = false;
 
@@ -93,7 +91,7 @@ class WebViewWindow {
 			if (hwnd_) { DestroyWindow(hwnd_); }
 		}
 
-		void enableAuthMonitoring(std::function<void(const std::string &, const std::string &)> onSuccess) {
+		void enableAuthMonitoring(std::function<void(const std::string &)> onSuccess) {
 			shouldMonitorAuth_ = true;
 			onAuthExtracted_ = std::move(onSuccess);
 		}
@@ -272,41 +270,6 @@ class WebViewWindow {
 			);
 		}
 
-		// Extracts the full RBXEventTrackerV2 cookie value from a cookie string.
-		// Returns the entire value (e.g., "CreateDate=...&rbxid=...&browserid=..."), or empty if not found.
-		static std::string ExtractRbxEventTrackerV2(const std::string &cookieString) {
-			const std::string key = "RBXEventTrackerV2=";
-			size_t start = cookieString.find(key);
-			if (start == std::string::npos) { return {}; }
-			start += key.size();
-
-			// Find the end of the cookie value (semicolon or end of string)
-			size_t end = cookieString.find(';', start);
-			if (end == std::string::npos) { end = cookieString.size(); }
-
-			return cookieString.substr(start, end - start);
-		}
-
-		// Extracts the browserid numeric value from an RBXEventTrackerV2 cookie value.
-		// Used only for the legacy launch URI which requires digits.
-		static std::string ExtractBrowserIdFromTrackerCookie(const std::string &trackerCookie) {
-			auto isDigit = [](unsigned char c) { return c >= '0' && c <= '9'; };
-
-			const std::string key = "browserid=";
-			size_t pos = trackerCookie.find(key);
-			if (pos == std::string::npos) { return {}; }
-			pos += key.size();
-
-			// Skip optional whitespace
-			while (pos < trackerCookie.size() && (trackerCookie[pos] == ' ' || trackerCookie[pos] == '\t')) { ++pos; }
-
-			size_t start = pos;
-			while (pos < trackerCookie.size() && isDigit(static_cast<unsigned char>(trackerCookie[pos]))) { ++pos; }
-
-			if (pos == start) { return {}; }
-			return trackerCookie.substr(start, pos - start);
-		}
-
 		void extractAuthCookieAndTracker() {
 			if (!webview_) { return; }
 
@@ -354,70 +317,9 @@ class WebViewWindow {
 									);
 								}
 
-								// 2) After login, capture RBXEventTrackerV2 cookie value.
-								// We do this by reading document.cookie and extracting the full RBXEventTrackerV2
-								// value.
-								if (webview_) {
-									webview_->ExecuteScript(
-										L"(function(){ var m = document.cookie.match(/RBXEventTrackerV2=([^;]+)/); return m ? m[1] : \"\"; })();",
-										Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
-											[this, cookieUtf8](HRESULT err, LPCWSTR resultJson) -> HRESULT {
-												std::string rbxEventTrackerCookie;
-
-												if (SUCCEEDED(err) && resultJson) {
-													// resultJson is a JSON string (quoted) or "null"
-													std::wstring ws(resultJson);
-													if (ws.size() >= 2 && ws.front() == L'\"' && ws.back() == L'\"') {
-														// Minimal JSON string unescape sufficient for cookie strings.
-														std::string s;
-														s.reserve(ws.size());
-														for (size_t i = 1; i + 1 < ws.size(); ++i) {
-															wchar_t ch = ws[i];
-															if (ch == L'\\' && i + 1 < ws.size()) {
-																wchar_t n = ws[++i];
-																switch (n) {
-																case L'\"': ch = L'\"'; break;
-																case L'\\': ch = L'\\'; break;
-																case L'/': ch = L'/'; break;
-																case L'b': ch = L'\b'; break;
-																case L'f': ch = L'\f'; break;
-																case L'n': ch = L'\n'; break;
-																case L'r': ch = L'\r'; break;
-																case L't': ch = L'\t'; break;
-																default:
-																	// For unexpected escapes, keep the escaped char
-																	// as-is.
-																	ch = n;
-																	break;
-																}
-															}
-															if (ch <= 0x7F) {
-																s.push_back(static_cast<char>(ch));
-															} else {
-																// Non-ASCII is unlikely in cookie key/value; skip
-																// best-effort.
-															}
-														}
-
-														// The result is already the RBXEventTrackerV2 value from the
-														// regex match
-														rbxEventTrackerCookie = s;
-													}
-												}
-
-												if (onAuthExtracted_) {
-													onAuthExtracted_(cookieUtf8, rbxEventTrackerCookie);
-												}
-												close();
-												return S_OK;
-											}
-										).Get()
-									);
-								} else {
-									// No webview - just return cookie
-									if (onAuthExtracted_) { onAuthExtracted_(cookieUtf8, ""); }
-									close();
-								}
+								// Call the auth extracted callback with just the cookie
+								if (onAuthExtracted_) { onAuthExtracted_(cookieUtf8); }
+								close();
 
 								break;
 							}

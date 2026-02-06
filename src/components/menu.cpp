@@ -38,7 +38,6 @@ bool g_multiRobloxEnabled = false;
 static struct {
 		bool showModal = false;
 		string pendingCookie;
-		string pendingRbxEventTracker;
 		string pendingUsername;
 		string pendingDisplayName;
 		string pendingPresence;
@@ -48,8 +47,7 @@ static struct {
 		int nextId = -1;
 } g_duplicateAccountModal;
 
-static void
-	ProcessAddAccountFromCookie(const std::string &trimmedCookie, const std::string &providedRbxEventTracker = "") {
+static void ProcessAddAccountFromCookie(const std::string &trimmedCookie) {
 	try {
 		Roblox::BanCheckResult banStatus = Roblox::cachedBanStatus(trimmedCookie);
 		if (banStatus == Roblox::BanCheckResult::InvalidCookie) {
@@ -80,17 +78,8 @@ static void
 			return a.userId == userIdStr;
 		});
 
-		// Trim RBXEventTrackerV2 cookie input (if provided)
-		auto trimCopy = [](std::string s) {
-			s.erase(0, s.find_first_not_of(" \t\r\n"));
-			if (!s.empty()) { s.erase(s.find_last_not_of(" \t\r\n") + 1); }
-			return s;
-		};
-		std::string trimmedRbxEventTracker = trimCopy(providedRbxEventTracker);
-
 		if (existingAccount != g_accounts.end()) {
 			g_duplicateAccountModal.pendingCookie = trimmedCookie;
-			g_duplicateAccountModal.pendingRbxEventTracker = trimmedRbxEventTracker;
 			g_duplicateAccountModal.pendingUsername = username;
 			g_duplicateAccountModal.pendingDisplayName = displayName;
 			g_duplicateAccountModal.pendingPresence = presence;
@@ -103,7 +92,6 @@ static void
 			AccountData newAcct;
 			newAcct.id = nextId;
 			newAcct.cookie = trimmedCookie;
-			newAcct.rbxEventTrackerCookie = trimmedRbxEventTracker;
 			newAcct.userId = userIdStr;
 			newAcct.username = move(username);
 			newAcct.displayName = move(displayName);
@@ -249,18 +237,16 @@ static void LaunchWebViewLogin() {
 				tempUserId
 			);
 
-			win->enableAuthMonitoring([](const std::string &cookie, const std::string &rbxEventTrackerCookie) {
+			win->enableAuthMonitoring([](const std::string &cookie) {
 				if (!cookie.empty()) {
 					LOG_INFO("Successfully extracted authentication cookie from WebView");
 
-					MainThread::Post([cookie, rbxEventTrackerCookie]() {
+					MainThread::Post([cookie]() {
 						string trimmedCookie = cookie;
 						trimmedCookie.erase(0, trimmedCookie.find_first_not_of(" \t\r\n"));
 						trimmedCookie.erase(trimmedCookie.find_last_not_of(" \t\r\n") + 1);
 
-						if (!trimmedCookie.empty()) {
-							ProcessAddAccountFromCookie(trimmedCookie, rbxEventTrackerCookie);
-						}
+						if (!trimmedCookie.empty()) { ProcessAddAccountFromCookie(trimmedCookie); }
 					});
 				} else {
 					LOG_INFO("WebView login cancelled or failed");
@@ -286,7 +272,6 @@ static void LaunchWebViewLogin() {
 
 bool RenderMainMenu() {
 	static array<char, 2048> s_cookieInputBuffer = {};
-	static array<char, 256> s_rbxEventTrackerInputBuffer = {};
 	static bool s_openClearCachePopup = false;
 	static bool s_openExportPopup = false;
 	static bool s_openImportPopup = false;
@@ -379,50 +364,20 @@ bool RenderMainMenu() {
 					);
 					PopItemWidth();
 
-					Spacing();
-					TextUnformatted("RBXEventTrackerV2 Cookie");
-					SameLine();
-					TextDisabled("(?)");
-					if (IsItemHovered()) {
-						BeginTooltip();
-						PushTextWrapPos(GetFontSize() * 35.0f);
-						TextUnformatted(
-							"RBXEventTrackerV2 cookie is required for some features. This is the full cookie value (e.g., CreateDate=...&rbxid=...&browserid=...)."
-						);
-						PopTextWrapPos();
-						EndTooltip();
-					}
-					PushItemWidth(GetFontSize() * 25);
-					InputText(
-						"##RbxEventTrackerInputSubmenu",
-						s_rbxEventTrackerInputBuffer.data(),
-						s_rbxEventTrackerInputBuffer.size(),
-						ImGuiInputTextFlags_AutoSelectAll
-					);
-					PopItemWidth();
-
 					bool canAdd = (s_cookieInputBuffer[0] != '\0');
 					if (canAdd && MenuItem("Add Account", nullptr, false, canAdd)) {
 						const string cookie = s_cookieInputBuffer.data();
-						const string rbxEventTracker = s_rbxEventTrackerInputBuffer.data();
 
 						string trimmedCookie = cookie;
 						trimmedCookie.erase(0, trimmedCookie.find_first_not_of(" \t\r\n"));
 						trimmedCookie.erase(trimmedCookie.find_last_not_of(" \t\r\n") + 1);
 
-						string trimmedRbxEventTracker = rbxEventTracker;
-						trimmedRbxEventTracker.erase(0, trimmedRbxEventTracker.find_first_not_of(" \t\r\n"));
-						if (!trimmedRbxEventTracker.empty()) {
-							trimmedRbxEventTracker.erase(trimmedRbxEventTracker.find_last_not_of(" \t\r\n") + 1);
-						}
-
 						if (trimmedCookie.empty()) {
 							Status::Error("Invalid cookie: Cookie cannot be empty");
 							s_cookieInputBuffer.fill('\0');
 						} else {
-							ProcessAddAccountFromCookie(trimmedCookie, trimmedRbxEventTracker);
+							ProcessAddAccountFromCookie(trimmedCookie);
 							s_cookieInputBuffer.fill('\0');
-							s_rbxEventTrackerInputBuffer.fill('\0');
 						}
 					}
 					ImGui::EndMenu();
@@ -649,10 +604,6 @@ bool RenderMainMenu() {
 			});
 			if (it != g_accounts.end()) {
 				it->cookie = g_duplicateAccountModal.pendingCookie;
-				// Update RBXEventTrackerV2 cookie if a new one was provided; otherwise keep existing value.
-				if (!g_duplicateAccountModal.pendingRbxEventTracker.empty()) {
-					it->rbxEventTrackerCookie = g_duplicateAccountModal.pendingRbxEventTracker;
-				}
 				it->username = g_duplicateAccountModal.pendingUsername;
 				it->displayName = g_duplicateAccountModal.pendingDisplayName;
 				it->status = g_duplicateAccountModal.pendingPresence;

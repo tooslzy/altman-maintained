@@ -72,7 +72,6 @@ namespace AccountUtils {
 			.cookie = account.cookie,
 			.hbaPrivateKey = account.hbaPrivateKey,
 			.hbaEnabled = account.hbaEnabled,
-			.rbxEventTrackerCookie = account.rbxEventTrackerCookie,
 		};
 	}
 
