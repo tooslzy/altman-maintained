@@ -38,7 +38,7 @@ bool g_multiRobloxEnabled = false;
 static struct {
 		bool showModal = false;
 		string pendingCookie;
-		string pendingBrowserTrackerId;
+		string pendingRbxEventTracker;
 		string pendingUsername;
 		string pendingDisplayName;
 		string pendingPresence;
@@ -48,7 +48,8 @@ static struct {
 		int nextId = -1;
 } g_duplicateAccountModal;
 
-static void ProcessAddAccountFromCookie(const std::string &trimmedCookie, const std::string &providedBrowserTrackerId = "") {
+static void
+	ProcessAddAccountFromCookie(const std::string &trimmedCookie, const std::string &providedRbxEventTracker = "") {
 	try {
 		Roblox::BanCheckResult banStatus = Roblox::cachedBanStatus(trimmedCookie);
 		if (banStatus == Roblox::BanCheckResult::InvalidCookie) {
@@ -79,26 +80,17 @@ static void ProcessAddAccountFromCookie(const std::string &trimmedCookie, const 
 			return a.userId == userIdStr;
 		});
 
-		// Trim Browser Tracker ID input (if provided)
+		// Trim RBXEventTrackerV2 cookie input (if provided)
 		auto trimCopy = [](std::string s) {
 			s.erase(0, s.find_first_not_of(" \t\r\n"));
 			if (!s.empty()) { s.erase(s.find_last_not_of(" \t\r\n") + 1); }
 			return s;
 		};
-		std::string trimmedBrowserTrackerId = trimCopy(providedBrowserTrackerId);
-
-		// Validate: digits only (or empty)
-		auto digitsOnlyOrEmpty = [](const std::string &s) {
-			return std::all_of(s.begin(), s.end(), [](unsigned char c) { return c >= '0' && c <= '9'; });
-		};
-		if (!trimmedBrowserTrackerId.empty() && !digitsOnlyOrEmpty(trimmedBrowserTrackerId)) {
-			Status::Error("Invalid Browser Tracker ID: must be digits only");
-			return;
-		}
+		std::string trimmedRbxEventTracker = trimCopy(providedRbxEventTracker);
 
 		if (existingAccount != g_accounts.end()) {
 			g_duplicateAccountModal.pendingCookie = trimmedCookie;
-			g_duplicateAccountModal.pendingBrowserTrackerId = trimmedBrowserTrackerId;
+			g_duplicateAccountModal.pendingRbxEventTracker = trimmedRbxEventTracker;
 			g_duplicateAccountModal.pendingUsername = username;
 			g_duplicateAccountModal.pendingDisplayName = displayName;
 			g_duplicateAccountModal.pendingPresence = presence;
@@ -111,7 +103,7 @@ static void ProcessAddAccountFromCookie(const std::string &trimmedCookie, const 
 			AccountData newAcct;
 			newAcct.id = nextId;
 			newAcct.cookie = trimmedCookie;
-			newAcct.browserTrackerId = trimmedBrowserTrackerId;
+			newAcct.rbxEventTrackerCookie = trimmedRbxEventTracker;
 			newAcct.userId = userIdStr;
 			newAcct.username = move(username);
 			newAcct.displayName = move(displayName);
@@ -257,16 +249,18 @@ static void LaunchWebViewLogin() {
 				tempUserId
 			);
 
-			win->enableAuthMonitoring([](const std::string &cookie, const std::string &browserTrackerId) {
+			win->enableAuthMonitoring([](const std::string &cookie, const std::string &rbxEventTrackerCookie) {
 				if (!cookie.empty()) {
 					LOG_INFO("Successfully extracted authentication cookie from WebView");
 
-					MainThread::Post([cookie, browserTrackerId]() {
+					MainThread::Post([cookie, rbxEventTrackerCookie]() {
 						string trimmedCookie = cookie;
 						trimmedCookie.erase(0, trimmedCookie.find_first_not_of(" \t\r\n"));
 						trimmedCookie.erase(trimmedCookie.find_last_not_of(" \t\r\n") + 1);
 
-						if (!trimmedCookie.empty()) { ProcessAddAccountFromCookie(trimmedCookie, browserTrackerId); }
+						if (!trimmedCookie.empty()) {
+							ProcessAddAccountFromCookie(trimmedCookie, rbxEventTrackerCookie);
+						}
 					});
 				} else {
 					LOG_INFO("WebView login cancelled or failed");
@@ -290,18 +284,18 @@ static void LaunchWebViewLogin() {
 	});
 }
 
-	bool RenderMainMenu() {
-		static array<char, 2048> s_cookieInputBuffer = {};
-		static array<char, 128> s_browserTrackerIdInputBuffer = {};
-		static bool s_openClearCachePopup = false;
-		static bool s_openExportPopup = false;
-		static bool s_openImportPopup = false;
-		static char s_password1[128] = "";
-		static char s_password2[128] = "";
-		static char s_importPassword[128] = "";
-		static std::vector<std::string> s_backupFiles;
-		static int s_selectedBackup = 0;
-		static bool s_refreshBackupList = false;
+bool RenderMainMenu() {
+	static array<char, 2048> s_cookieInputBuffer = {};
+	static array<char, 256> s_rbxEventTrackerInputBuffer = {};
+	static bool s_openClearCachePopup = false;
+	static bool s_openExportPopup = false;
+	static bool s_openImportPopup = false;
+	static char s_password1[128] = "";
+	static char s_password2[128] = "";
+	static char s_importPassword[128] = "";
+	static std::vector<std::string> s_backupFiles;
+	static int s_selectedBackup = 0;
+	static bool s_refreshBackupList = false;
 
 	if (BeginMainMenuBar()) {
 		if (BeginMenu("File")) {
@@ -386,21 +380,23 @@ static void LaunchWebViewLogin() {
 					PopItemWidth();
 
 					Spacing();
-					TextUnformatted("Browser Tracker ID");
+					TextUnformatted("RBXEventTrackerV2 Cookie");
 					SameLine();
 					TextDisabled("(?)");
 					if (IsItemHovered()) {
 						BeginTooltip();
 						PushTextWrapPos(GetFontSize() * 35.0f);
-						TextUnformatted("Browser Tracker ID is required for some features.");
+						TextUnformatted(
+							"RBXEventTrackerV2 cookie is required for some features. This is the full cookie value (e.g., CreateDate=...&rbxid=...&browserid=...)."
+						);
 						PopTextWrapPos();
 						EndTooltip();
 					}
 					PushItemWidth(GetFontSize() * 25);
 					InputText(
-						"##BrowserTrackerIdInputSubmenu",
-						s_browserTrackerIdInputBuffer.data(),
-						s_browserTrackerIdInputBuffer.size(),
+						"##RbxEventTrackerInputSubmenu",
+						s_rbxEventTrackerInputBuffer.data(),
+						s_rbxEventTrackerInputBuffer.size(),
 						ImGuiInputTextFlags_AutoSelectAll
 					);
 					PopItemWidth();
@@ -408,25 +404,25 @@ static void LaunchWebViewLogin() {
 					bool canAdd = (s_cookieInputBuffer[0] != '\0');
 					if (canAdd && MenuItem("Add Account", nullptr, false, canAdd)) {
 						const string cookie = s_cookieInputBuffer.data();
-						const string browserTrackerId = s_browserTrackerIdInputBuffer.data();
+						const string rbxEventTracker = s_rbxEventTrackerInputBuffer.data();
 
 						string trimmedCookie = cookie;
 						trimmedCookie.erase(0, trimmedCookie.find_first_not_of(" \t\r\n"));
 						trimmedCookie.erase(trimmedCookie.find_last_not_of(" \t\r\n") + 1);
 
-						string trimmedBrowserTrackerId = browserTrackerId;
-						trimmedBrowserTrackerId.erase(0, trimmedBrowserTrackerId.find_first_not_of(" \t\r\n"));
-						if (!trimmedBrowserTrackerId.empty()) {
-							trimmedBrowserTrackerId.erase(trimmedBrowserTrackerId.find_last_not_of(" \t\r\n") + 1);
+						string trimmedRbxEventTracker = rbxEventTracker;
+						trimmedRbxEventTracker.erase(0, trimmedRbxEventTracker.find_first_not_of(" \t\r\n"));
+						if (!trimmedRbxEventTracker.empty()) {
+							trimmedRbxEventTracker.erase(trimmedRbxEventTracker.find_last_not_of(" \t\r\n") + 1);
 						}
 
 						if (trimmedCookie.empty()) {
 							Status::Error("Invalid cookie: Cookie cannot be empty");
 							s_cookieInputBuffer.fill('\0');
 						} else {
-							ProcessAddAccountFromCookie(trimmedCookie, trimmedBrowserTrackerId);
+							ProcessAddAccountFromCookie(trimmedCookie, trimmedRbxEventTracker);
 							s_cookieInputBuffer.fill('\0');
-							s_browserTrackerIdInputBuffer.fill('\0');
+							s_rbxEventTrackerInputBuffer.fill('\0');
 						}
 					}
 					ImGui::EndMenu();
@@ -653,9 +649,9 @@ static void LaunchWebViewLogin() {
 			});
 			if (it != g_accounts.end()) {
 				it->cookie = g_duplicateAccountModal.pendingCookie;
-				// Update Browser Tracker ID if a new one was provided; otherwise keep existing value.
-				if (!g_duplicateAccountModal.pendingBrowserTrackerId.empty()) {
-					it->browserTrackerId = g_duplicateAccountModal.pendingBrowserTrackerId;
+				// Update RBXEventTrackerV2 cookie if a new one was provided; otherwise keep existing value.
+				if (!g_duplicateAccountModal.pendingRbxEventTracker.empty()) {
+					it->rbxEventTrackerCookie = g_duplicateAccountModal.pendingRbxEventTracker;
 				}
 				it->username = g_duplicateAccountModal.pendingUsername;
 				it->displayName = g_duplicateAccountModal.pendingDisplayName;

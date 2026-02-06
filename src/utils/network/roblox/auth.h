@@ -260,12 +260,17 @@ namespace Roblox {
 	 * @param hbaEnabled Whether HBA is enabled for this account
 	 * @return AuthConfig structure
 	 */
-	static HBA::AuthConfig
-		makeAuthConfig(const std::string &cookie, const std::string &hbaPrivateKey = "", bool hbaEnabled = true) {
+	static HBA::AuthConfig makeAuthConfig(
+		const std::string &cookie,
+		const std::string &hbaPrivateKey = "",
+		bool hbaEnabled = true,
+		const std::string &rbxEventTrackerCookie = ""
+	) {
 		return HBA::AuthConfig {
 			.cookie = cookie,
 			.hbaPrivateKey = hbaPrivateKey,
-			.hbaEnabled = hbaEnabled && !hbaPrivateKey.empty()
+			.hbaEnabled = hbaEnabled && !hbaPrivateKey.empty(),
+			.rbxEventTrackerCookie = rbxEventTrackerCookie
 		};
 	}
 

@@ -40,6 +40,26 @@ using Microsoft::WRL::ComPtr;
 static char g_edit_note_buffer_ctx[1024];
 static int g_editing_note_for_account_id_ctx = -1;
 
+// Extracts the browserid numeric value from an RBXEventTrackerV2 cookie value.
+// Used only for the legacy launch URI which requires digits.
+static std::string ExtractBrowserIdFromTrackerCookie_ContextMenu(const std::string &trackerCookie) {
+	auto isDigit = [](unsigned char c) { return c >= '0' && c <= '9'; };
+
+	const std::string key = "browserid=";
+	size_t pos = trackerCookie.find(key);
+	if (pos == std::string::npos) { return {}; }
+	pos += key.size();
+
+	// Skip optional whitespace
+	while (pos < trackerCookie.size() && (trackerCookie[pos] == ' ' || trackerCookie[pos] == '\t')) { ++pos; }
+
+	size_t start = pos;
+	while (pos < trackerCookie.size() && isDigit(static_cast<unsigned char>(trackerCookie[pos]))) { ++pos; }
+
+	if (pos == start) { return {}; }
+	return trackerCookie.substr(start, pos - start);
+}
+
 static bool g_openCustomUrlPopup = false;
 static int g_customUrlAccountId = -1;
 static char g_customUrlBuffer[256] = "";
@@ -121,6 +141,109 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 			Separator();
 		}
 
+		TextDisabled("Roblox Settings");
+		if (BeginMenu("Visibility")) {
+			auto applyStatusToSelected = [&](Roblox::OnlineStatusPrivacy privacy) {
+				if (isMultiSelectionContext) {
+					for (auto &a : g_accounts) {
+						if (g_selectedAccountIds.find(a.id) == g_selectedAccountIds.end()) { continue; }
+						if (!AccountFilters::IsAccountUsable(a)) { continue; }
+						auto creds = AccountUtils::credentialsFromAccount(a);
+						Threading::newThread([cfg = creds.toAuthConfig(), privacy]() {
+							std::string error;
+							if (!Roblox::updateUserSettingsOnlineStatusVisibility(cfg, privacy, &error)) {
+								Status::Error(error);
+							}
+						});
+					}
+				} else {
+					if (!AccountFilters::IsAccountUsable(account)) { return; }
+					auto creds = AccountUtils::credentialsFromAccount(account);
+					Threading::newThread([cfg = creds.toAuthConfig(), privacy]() {
+						std::string error;
+						if (!Roblox::updateUserSettingsOnlineStatusVisibility(cfg, privacy, &error)) {
+							Status::Error(error);
+						}
+					});
+				}
+			};
+
+			auto applyJoinToSelected = [&](Roblox::JoinPrivacy privacy) {
+				if (isMultiSelectionContext) {
+					for (auto &a : g_accounts) {
+						if (g_selectedAccountIds.find(a.id) == g_selectedAccountIds.end()) { continue; }
+						if (!AccountFilters::IsAccountUsable(a)) { continue; }
+						auto creds = AccountUtils::credentialsFromAccount(a);
+						Threading::newThread([cfg = creds.toAuthConfig(), privacy]() {
+							std::string error;
+							if (!Roblox::updateUserSettingsGameJoinVisibility(cfg, privacy, &error)) {
+								Status::Error(error);
+							}
+						});
+					}
+				} else {
+					if (!AccountFilters::IsAccountUsable(account)) { return; }
+					auto creds = AccountUtils::credentialsFromAccount(account);
+					Threading::newThread([cfg = creds.toAuthConfig(), privacy]() {
+						std::string error;
+						if (!Roblox::updateUserSettingsGameJoinVisibility(cfg, privacy, &error)) {
+							Status::Error(error);
+						}
+					});
+				}
+			};
+
+			TextDisabled("Online status");
+			if (Selectable("Everyone##StatusVisibility", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyStatusToSelected(Roblox::OnlineStatusPrivacy::AllUsers);
+			}
+			if (Selectable(
+					"Friends, followers, & following##StatusVisibility",
+					false,
+					ImGuiSelectableFlags_DontClosePopups
+				)) {
+				applyStatusToSelected(Roblox::OnlineStatusPrivacy::FriendsFollowingAndFollowers);
+			}
+			if (Selectable("Friends, & following##StatusVisibility", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyStatusToSelected(Roblox::OnlineStatusPrivacy::FriendsAndFollowing);
+			}
+			if (Selectable("Friends##StatusVisibility", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyStatusToSelected(Roblox::OnlineStatusPrivacy::Friends);
+			}
+			if (Selectable("No one##StatusVisibility", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyStatusToSelected(Roblox::OnlineStatusPrivacy::NoOne);
+			}
+
+			Separator();
+
+			TextDisabled("Current game");
+			if (Selectable("Everyone##GameVisibility", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyJoinToSelected(Roblox::JoinPrivacy::All);
+			}
+			if (Selectable(
+					"Friends, followers, & following##GameVisibility",
+					false,
+					ImGuiSelectableFlags_DontClosePopups
+				)) {
+				applyJoinToSelected(Roblox::JoinPrivacy::Followers);
+			}
+			if (Selectable("Friends, & following##GameVisibility", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyJoinToSelected(Roblox::JoinPrivacy::Following);
+			}
+			if (Selectable("Friends##GameVisibility", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyJoinToSelected(Roblox::JoinPrivacy::Friends);
+			}
+			if (Selectable("No one##GameVisibility", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyJoinToSelected(Roblox::JoinPrivacy::NoOne);
+			}
+
+			ImGui::SetItemDefaultFocus();
+
+			ImGui::EndMenu();
+		}
+
+		Separator();
+
 		// Copy Info submenu
 		if (BeginMenu("Copy Info")) {
 			if (isMultiSelectionContext) {
@@ -194,10 +317,13 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 							for (const auto &creds : accs) {
 								string ticket = Roblox::fetchAuthTicket(creds.toAuthConfig());
 								if (ticket.empty()) { continue; }
-								// Prefer the per-account Browser Tracker ID if present; otherwise fall back to a random value.
-								string browserTracker = !creds.browserTrackerId.empty()
-														  ? creds.browserTrackerId
-														  : (to_string(d1(rng)) + to_string(d2(rng)));
+								// Prefer the per-account Browser Tracker ID if present; otherwise fall back to a random
+								// value. Extract browserid digits from RBXEventTrackerV2 cookie for the launch URI
+								string browserTracker
+									= ExtractBrowserIdFromTrackerCookie_ContextMenu(creds.rbxEventTrackerCookie);
+								if (browserTracker.empty()) {
+									browserTracker = to_string(d1(rng)) + to_string(d2(rng));
+								}
 								string placeLauncherUrl
 									= "https://assetgame.roblox.com/game/PlaceLauncher.ashx?request=RequestGame%26placeId="
 									+ place_id_str;
@@ -241,10 +367,10 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 											  .count();
 							thread_local mt19937_64 rng {random_device {}()};
 							static uniform_int_distribution<int> d1(100000, 130000), d2(100000, 900000);
-							// Prefer the per-account Browser Tracker ID if present; otherwise fall back to a random value.
-							string browserTracker = !creds.browserTrackerId.empty()
-													  ? creds.browserTrackerId
-													  : (to_string(d1(rng)) + to_string(d2(rng)));
+							// Extract browserid digits from RBXEventTrackerV2 cookie for the launch URI
+							string browserTracker
+								= ExtractBrowserIdFromTrackerCookie_ContextMenu(creds.rbxEventTrackerCookie);
+							if (browserTracker.empty()) { browserTracker = to_string(d1(rng)) + to_string(d2(rng)); }
 							string ticket = Roblox::fetchAuthTicket(creds.toAuthConfig());
 							if (ticket.empty()) { return; }
 							string placeLauncherUrl

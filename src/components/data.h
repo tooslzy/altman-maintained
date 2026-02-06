@@ -30,8 +30,9 @@ struct AccountData {
 		std::string jobId;
 
 		// Not encrypted (used by some features)
+		// Full RBXEventTrackerV2 cookie value (e.g., "CreateDate=...&rbxid=...&browserid=...")
 		// Empty means unknown/not provided.
-		std::string browserTrackerId;
+		std::string rbxEventTrackerCookie;
 
 		// HBA (Hardware-Backed Authentication) fields
 		std::string hbaPrivateKey; // PEM-encoded ECDSA P-256 private key (encrypted at rest)

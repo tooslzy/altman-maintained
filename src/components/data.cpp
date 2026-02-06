@@ -161,7 +161,7 @@ namespace Data {
 			account.placeId = item.value("placeId", 0ULL);
 			account.jobId = item.value("jobId", "");
 			account.hbaEnabled = item.value("hbaEnabled", true);
-			account.browserTrackerId = item.value("browserTrackerId", "");
+			account.rbxEventTrackerCookie = item.value("rbxEventTrackerCookie", "");
 
 			// Load encrypted HBA private key
 			if (item.contains("encryptedHbaKey")) {
@@ -261,24 +261,24 @@ namespace Data {
 			}
 
 			dataArray.push_back({
-				{"id",			   account.id			 },
-				{"displayName",		account.displayName   },
-				{"username",		 account.username		 },
-				{"userId",		   account.userId		 },
-				{"status",		   account.status		 },
-				{"ageGroup",		 account.ageGroup		 },
-				{"voiceStatus",		account.voiceStatus   },
-				{"voiceBanExpiry",  account.voiceBanExpiry},
-				{"banExpiry",		  account.banExpiry	   },
-				{"note",			 account.note			 },
-				{"encryptedCookie", b64EncryptedCookie	  },
-				{"isFavorite",	   account.isFavorite	 },
-				{"lastLocation",	 account.lastLocation	 },
-				{"placeId",			account.placeId	   },
-				{"jobId",			  account.jobId		   },
-				{"encryptedHbaKey", b64EncryptedHbaKey	  },
-				{"hbaEnabled",	   account.hbaEnabled	 },
-				{"browserTrackerId", account.browserTrackerId}
+				{"id",					   account.id					 },
+				{"displayName",			account.displayName		   },
+				{"username",				 account.username			 },
+				{"userId",				   account.userId				 },
+				{"status",				   account.status				 },
+				{"ageGroup",				 account.ageGroup			 },
+				{"voiceStatus",			account.voiceStatus		   },
+				{"voiceBanExpiry",		   account.voiceBanExpiry		 },
+				{"banExpiry",			  account.banExpiry			   },
+				{"note",					 account.note				 },
+				{"encryptedCookie",		b64EncryptedCookie			  },
+				{"isFavorite",			   account.isFavorite			 },
+				{"lastLocation",			 account.lastLocation		 },
+				{"placeId",				account.placeId			   },
+				{"jobId",				  account.jobId				   },
+				{"encryptedHbaKey",		b64EncryptedHbaKey			  },
+				{"hbaEnabled",			   account.hbaEnabled			 },
+				{"rbxEventTrackerCookie", account.rbxEventTrackerCookie}
 			});
 		}
 		out << dataArray.dump(4);

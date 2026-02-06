@@ -25,7 +25,13 @@ namespace Roblox { namespace AuthenticatedHttp {
 		std::map<std::string, std::string> headers;
 
 		// Add cookie
-		if (!config.cookie.empty()) { headers["Cookie"] = ".ROBLOSECURITY=" + config.cookie; }
+		if (!config.cookie.empty()) {
+			std::string cookieHeader = ".ROBLOSECURITY=" + config.cookie;
+			if (!config.rbxEventTrackerCookie.empty()) {
+				cookieHeader += "; RBXEventTrackerV2=" + config.rbxEventTrackerCookie;
+			}
+			headers["Cookie"] = cookieHeader;
+		}
 
 		// Add additional headers
 		for (const auto &[key, value] : additionalHeaders) { headers[key] = value; }
@@ -56,7 +62,13 @@ namespace Roblox { namespace AuthenticatedHttp {
 		std::map<std::string, std::string> headers;
 
 		// Add cookie
-		if (!config.cookie.empty()) { headers["Cookie"] = ".ROBLOSECURITY=" + config.cookie; }
+		if (!config.cookie.empty()) {
+			std::string cookieHeader = ".ROBLOSECURITY=" + config.cookie;
+			if (!config.rbxEventTrackerCookie.empty()) {
+				cookieHeader += "; RBXEventTrackerV2=" + config.rbxEventTrackerCookie;
+			}
+			headers["Cookie"] = cookieHeader;
+		}
 
 		// Add additional headers
 		for (const auto &[key, value] : additionalHeaders) { headers[key] = value; }
@@ -108,7 +120,13 @@ namespace Roblox { namespace AuthenticatedHttp {
 		std::map<std::string, std::string> headers;
 
 		// Add cookie
-		if (!config.cookie.empty()) { headers["Cookie"] = ".ROBLOSECURITY=" + config.cookie; }
+		if (!config.cookie.empty()) {
+			std::string cookieHeader = ".ROBLOSECURITY=" + config.cookie;
+			if (!config.rbxEventTrackerCookie.empty()) {
+				cookieHeader += "; RBXEventTrackerV2=" + config.rbxEventTrackerCookie;
+			}
+			headers["Cookie"] = cookieHeader;
+		}
 
 		// Add CSRF token
 		headers["X-CSRF-TOKEN"] = csrfToken;

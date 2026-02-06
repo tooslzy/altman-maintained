@@ -69,6 +69,7 @@ namespace Roblox { namespace HBA {
 			std::string cookie; // .ROBLOSECURITY cookie value
 			std::string hbaPrivateKey; // PEM-encoded private key (empty = skip BAT)
 			bool hbaEnabled = true; // Whether to attempt BAT generation
+			std::string rbxEventTrackerCookie; // Full RBXEventTrackerV2 cookie value
 
 			bool hasHBA() const { return hbaEnabled && !hbaPrivateKey.empty(); }
 	};
@@ -83,9 +84,9 @@ namespace Roblox { namespace HBA {
 			std::string hbaPrivateKey;
 			bool hbaEnabled = true;
 
-			// Not encrypted; used by some features that need a stable browser identity.
+			// Full RBXEventTrackerV2 cookie value (e.g., "CreateDate=...&rbxid=...&browserid=...").
 			// Empty means unknown/not provided.
-			std::string browserTrackerId;
+			std::string rbxEventTrackerCookie;
 
 			bool hasHBA() const { return hbaEnabled && !hbaPrivateKey.empty(); }
 
@@ -94,7 +95,8 @@ namespace Roblox { namespace HBA {
 				return AuthConfig {
 					.cookie = cookie,
 					.hbaPrivateKey = hbaPrivateKey,
-					.hbaEnabled = hbaEnabled && !hbaPrivateKey.empty()
+					.hbaEnabled = hbaEnabled && !hbaPrivateKey.empty(),
+					.rbxEventTrackerCookie = rbxEventTrackerCookie
 				};
 			}
 	};
