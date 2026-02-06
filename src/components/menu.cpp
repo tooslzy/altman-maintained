@@ -406,7 +406,7 @@ static void LaunchWebViewLogin() {
 					PopItemWidth();
 
 					bool canAdd = (s_cookieInputBuffer[0] != '\0');
-					if (canAdd && MenuItem("Add Cookie", nullptr, false, canAdd)) {
+					if (canAdd && MenuItem("Add Account", nullptr, false, canAdd)) {
 						const string cookie = s_cookieInputBuffer.data();
 						const string browserTrackerId = s_browserTrackerIdInputBuffer.data();
 

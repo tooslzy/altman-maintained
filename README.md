@@ -38,7 +38,7 @@
 1. Launch **AltMan**.
 2. Navigate to `Accounts` on the menu bar.
 3. Click `Add Account` > `Add Via Cookie`.
-4. Paste your cookie and click **Add Cookie**.
+4. Paste your cookie and click **Add Account**.
 
 ### Joining Games
 
