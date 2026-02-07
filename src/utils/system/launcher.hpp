@@ -10,6 +10,7 @@
 #include <windows.h>
 
 #include "../../components/data.h"
+#include "core/app_state.h"
 #include "core/logging.hpp"
 #include "network/roblox/auth.h"
 #include "network/roblox/hba.h"
@@ -106,9 +107,10 @@ inline void launchRobloxSequential(
 	const std::string &jobId,
 	const std::vector<Roblox::HBA::AuthCredentials> &accounts
 ) {
-	if (g_killRobloxOnLaunch) { RobloxControl::KillRobloxProcesses(); }
-
-	if (g_clearCacheOnLaunch) { RobloxControl::ClearRobloxCache(); }
+	if (!g_multiRobloxEnabled) {
+		if (g_killRobloxOnLaunch) { RobloxControl::KillRobloxProcesses(); }
+		if (g_clearCacheOnLaunch) { RobloxControl::ClearRobloxCache(); }
+	}
 
 	for (const auto &creds : accounts) {
 		LOG_INFO(

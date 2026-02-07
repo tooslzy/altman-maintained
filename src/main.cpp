@@ -20,8 +20,10 @@
 #include "components/data.h"
 #include <filesystem>
 #include "core/account_utils.h"
+#include "core/app_state.h"
 #include "core/logging.hpp"
 #include "network/roblox.h"
+#include "system/multi_instance.h"
 #include "system/main_thread.h"
 #include "system/update.h"
 #include "ui/confirm.h"
@@ -193,6 +195,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 
 	Data::LoadSettings("settings.json");
+#ifdef _WIN32
+	if (g_multiRobloxEnabled) { MultiInstance::Enable(); }
+#endif
 	if (g_checkUpdatesOnStartup) { CheckForUpdates(); }
 	Data::LoadAccounts("accounts.json");
 	Data::LoadFavorites("favorites.json");

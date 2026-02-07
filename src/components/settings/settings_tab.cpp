@@ -14,6 +14,17 @@ using namespace ImGui;
 // Static flag to manage console modal visibility
 static bool g_requestOpenConsoleModal = false;
 
+static void HelpMarker(const char *desc) {
+	TextDisabled("(?)");
+	if (IsItemHovered()) {
+		BeginTooltip();
+		PushTextWrapPos(GetFontSize() * 35.0f);
+		TextUnformatted(desc);
+		PopTextWrapPos();
+		EndTooltip();
+	}
+}
+
 void RenderSettingsTab() {
 	// Button to open the Console modal (always visible)
 	if (Button("Open Console")) { g_requestOpenConsoleModal = true; }
@@ -94,6 +105,11 @@ void RenderSettingsTab() {
 #endif
 			Data::SaveSettings("settings.json");
 		}
+		SameLine();
+		HelpMarker(
+			"Multi Roblox only works if Roblox is launched after Altman. "
+			"If Roblox is already running when Altman starts, multi-instance won't apply."
+		);
 
 		BeginDisabled(g_multiRobloxEnabled);
 		bool killOnLaunch = g_killRobloxOnLaunch;
