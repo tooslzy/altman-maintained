@@ -260,23 +260,23 @@ namespace Data {
 			}
 
 			dataArray.push_back({
-				{"id",					   account.id					 },
-				{"displayName",			account.displayName		   },
-				{"username",				 account.username			 },
-				{"userId",				   account.userId				 },
-				{"status",				   account.status				 },
-				{"ageGroup",				 account.ageGroup			 },
-				{"voiceStatus",			account.voiceStatus		   },
-				{"voiceBanExpiry",		   account.voiceBanExpiry		 },
-				{"banExpiry",			  account.banExpiry			   },
-				{"note",					 account.note				 },
-				{"encryptedCookie",		b64EncryptedCookie			  },
-				{"isFavorite",			   account.isFavorite			 },
-				{"lastLocation",			 account.lastLocation		 },
-				{"placeId",				account.placeId			   },
-				{"jobId",				  account.jobId				   },
-				{"encryptedHbaKey",		b64EncryptedHbaKey			  },
-				{"hbaEnabled",			   account.hbaEnabled			 }
+				{"id",			   account.id			 },
+				{"displayName",		account.displayName   },
+				{"username",		 account.username		 },
+				{"userId",		   account.userId		 },
+				{"status",		   account.status		 },
+				{"ageGroup",		 account.ageGroup		 },
+				{"voiceStatus",		account.voiceStatus   },
+				{"voiceBanExpiry",  account.voiceBanExpiry},
+				{"banExpiry",		  account.banExpiry	   },
+				{"note",			 account.note			 },
+				{"encryptedCookie", b64EncryptedCookie	  },
+				{"isFavorite",	   account.isFavorite	 },
+				{"lastLocation",	 account.lastLocation	 },
+				{"placeId",			account.placeId	   },
+				{"jobId",			  account.jobId		   },
+				{"encryptedHbaKey", b64EncryptedHbaKey	  },
+				{"hbaEnabled",	   account.hbaEnabled	 }
 			});
 		}
 		out << dataArray.dump(4);

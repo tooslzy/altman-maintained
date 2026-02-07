@@ -9,6 +9,41 @@
 
 namespace Roblox { namespace AuthenticatedHttp {
 
+	inline std::map<std::string, std::string> buildAuthHeaders(
+		const HBA::AuthConfig &config,
+		const std::string &url,
+		const std::string &method,
+		const std::string &body,
+		const std::map<std::string, std::string> &additionalHeaders = {},
+		const std::string &csrfToken = ""
+	) {
+		std::map<std::string, std::string> headers;
+
+		// Add cookie
+		if (!config.cookie.empty()) {
+			std::string cookieHeader = ".ROBLOSECURITY=" + config.cookie + "; RBXEventTrackerV2=browserid=1";
+			headers["Cookie"] = cookieHeader;
+		}
+
+		// Add additional headers
+		for (const auto &[key, value] : additionalHeaders) { headers[key] = value; }
+
+		// Add CSRF + origin/referer if provided
+		if (!csrfToken.empty()) {
+			headers["X-CSRF-TOKEN"] = csrfToken;
+			headers["Origin"] = "https://www.roblox.com";
+			headers["Referer"] = "https://www.roblox.com/";
+		}
+
+		// Generate and add BAT header if applicable
+		if (config.hasHBA()) {
+			auto batHeaders = HBA::getClient().generateBATHeaders(config, url, method, body);
+			for (const auto &[key, value] : batHeaders) { headers[key] = value; }
+		}
+
+		return headers;
+	}
+
 	/**
 	 * Make an authenticated GET request with optional HBA support
 	 * @param url The request URL
@@ -22,23 +57,7 @@ namespace Roblox { namespace AuthenticatedHttp {
 			const HBA::AuthConfig &config,
 			const std::map<std::string, std::string> &additionalHeaders = {},
 			cpr::Parameters params = {}) {
-		std::map<std::string, std::string> headers;
-
-		// Add cookie
-		if (!config.cookie.empty()) {
-			std::string cookieHeader = ".ROBLOSECURITY=" + config.cookie + "; RBXEventTrackerV2=browserid=1";
-			headers["Cookie"] = cookieHeader;
-		}
-
-		// Add additional headers
-		for (const auto &[key, value] : additionalHeaders) { headers[key] = value; }
-
-		// Generate and add BAT header if applicable
-		if (config.hasHBA()) {
-			auto batHeaders = HBA::getClient().generateBATHeaders(config, url, "GET", "");
-			for (const auto &[key, value] : batHeaders) { headers[key] = value; }
-		}
-
+		auto headers = buildAuthHeaders(config, url, "GET", "", additionalHeaders);
 		return HttpClient::getWithHeaders(url, headers, params);
 	}
 
@@ -56,23 +75,7 @@ namespace Roblox { namespace AuthenticatedHttp {
 		const std::string &jsonBody = "",
 		const std::map<std::string, std::string> &additionalHeaders = {}
 	) {
-		std::map<std::string, std::string> headers;
-
-		// Add cookie
-		if (!config.cookie.empty()) {
-			std::string cookieHeader = ".ROBLOSECURITY=" + config.cookie + "; RBXEventTrackerV2=browserid=1";
-			headers["Cookie"] = cookieHeader;
-		}
-
-		// Add additional headers
-		for (const auto &[key, value] : additionalHeaders) { headers[key] = value; }
-
-		// Generate and add BAT header if applicable
-		if (config.hasHBA()) {
-			auto batHeaders = HBA::getClient().generateBATHeaders(config, url, "POST", jsonBody);
-			for (const auto &[key, value] : batHeaders) { headers[key] = value; }
-		}
-
+		auto headers = buildAuthHeaders(config, url, "POST", jsonBody, additionalHeaders);
 		return HttpClient::postWithHeaders(url, headers, jsonBody);
 	}
 
@@ -110,32 +113,27 @@ namespace Roblox { namespace AuthenticatedHttp {
 			return {403, "Failed to fetch CSRF token", {}};
 		}
 
-		// Build headers with CSRF
-		std::map<std::string, std::string> headers;
-
-		// Add cookie
-		if (!config.cookie.empty()) {
-			std::string cookieHeader = ".ROBLOSECURITY=" + config.cookie + "; RBXEventTrackerV2=browserid=1";
-			headers["Cookie"] = cookieHeader;
-		}
-
-		// Add CSRF token
-		headers["X-CSRF-TOKEN"] = csrfToken;
-
-		// Add Roblox origin/referer for security
-		headers["Origin"] = "https://www.roblox.com";
-		headers["Referer"] = "https://www.roblox.com/";
-
-		// Add additional headers
-		for (const auto &[key, value] : additionalHeaders) { headers[key] = value; }
-
-		// Generate and add BAT header if applicable
-		if (config.hasHBA()) {
-			auto batHeaders = HBA::getClient().generateBATHeaders(config, url, "POST", jsonBody);
-			for (const auto &[key, value] : batHeaders) { headers[key] = value; }
-		}
-
+		auto headers = buildAuthHeaders(config, url, "POST", jsonBody, additionalHeaders, csrfToken);
 		return HttpClient::postWithHeaders(url, headers, jsonBody);
+	}
+
+	/**
+	 * Make an authenticated POST request that retries with CSRF when required.
+	 * If the initial request returns x-csrf-token, it will automatically retry.
+	 */
+	inline HttpClient::Response postWithAutoCSRF(
+		const std::string &url,
+		const HBA::AuthConfig &config,
+		const std::string &jsonBody = "",
+		const std::map<std::string, std::string> &additionalHeaders = {}
+	) {
+		auto resp = post(url, config, jsonBody, additionalHeaders);
+		auto it = resp.headers.find("x-csrf-token");
+		if (resp.status_code == 403 && it != resp.headers.end()) {
+			auto headers = buildAuthHeaders(config, url, "POST", jsonBody, additionalHeaders, it->second);
+			return HttpClient::postWithHeaders(url, headers, jsonBody);
+		}
+		return resp;
 	}
 
 	/**

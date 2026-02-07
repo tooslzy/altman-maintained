@@ -27,14 +27,10 @@ namespace Roblox {
 	inline std::mutex g_banStatusMutex;
 	inline std::unordered_map<std::string, BanCheckResult> g_banStatusCache;
 
-	static BanInfo checkBanStatus(const std::string &cookie) {
+	static BanInfo checkBanStatus(const HBA::AuthConfig &config) {
 		LOG_INFO("Checking moderation status");
-		HttpClient::Response response = HttpClient::get(
-			"https://usermoderation.roblox.com/v1/not-approved",
-			{
-				{"Cookie", ".ROBLOSECURITY=" + cookie}
-		}
-		);
+		HttpClient::Response response
+			= AuthenticatedHttp::get("https://usermoderation.roblox.com/v1/not-approved", config);
 
 		if (response.status_code < 200 || response.status_code >= 300) {
 			LOG_ERROR("Failed moderation check: HTTP " + std::to_string(response.status_code));
@@ -65,6 +61,11 @@ namespace Roblox {
 		return {BanCheckResult::Unbanned, 0};
 	}
 
+	static BanInfo checkBanStatus(const std::string &cookie) {
+		HBA::AuthConfig config {.cookie = cookie, .hbaPrivateKey = "", .hbaEnabled = false};
+		return checkBanStatus(config);
+	}
+
 	static BanCheckResult cachedBanStatus(const std::string &cookie) {
 		{
 			std::lock_guard<std::mutex> lock(g_banStatusMutex);
@@ -80,6 +81,21 @@ namespace Roblox {
 		return status;
 	}
 
+	static BanCheckResult cachedBanStatus(const HBA::AuthConfig &config) {
+		{
+			std::lock_guard<std::mutex> lock(g_banStatusMutex);
+			auto it = g_banStatusCache.find(config.cookie);
+			if (it != g_banStatusCache.end()) { return it->second; }
+		}
+
+		BanCheckResult status = checkBanStatus(config).status;
+		{
+			std::lock_guard<std::mutex> lock(g_banStatusMutex);
+			g_banStatusCache[config.cookie] = status;
+		}
+		return status;
+	}
+
 	// Force refresh the cached ban status for a cookie
 	static BanCheckResult refreshBanStatus(const std::string &cookie) {
 		BanCheckResult status = checkBanStatus(cookie).status;
@@ -90,12 +106,47 @@ namespace Roblox {
 		return status;
 	}
 
+	// Force refresh the cached ban status for a config
+	static BanCheckResult refreshBanStatus(const HBA::AuthConfig &config) {
+		BanCheckResult status = checkBanStatus(config).status;
+		{
+			std::lock_guard<std::mutex> lock(g_banStatusMutex);
+			g_banStatusCache[config.cookie] = status;
+		}
+		return status;
+	}
+
 	static bool isCookieValid(const std::string &cookie) {
 		return cachedBanStatus(cookie) != BanCheckResult::InvalidCookie;
 	}
 
+	static bool isCookieValid(const HBA::AuthConfig &config) {
+		return cachedBanStatus(config) != BanCheckResult::InvalidCookie;
+	}
+
 	static bool canUseCookie(const std::string &cookie) {
 		BanCheckResult status = cachedBanStatus(cookie);
+		if (status == BanCheckResult::Banned) {
+			LOG_ERROR("Skipping request: cookie is banned");
+			return false;
+		}
+		if (status == BanCheckResult::Warned) {
+			LOG_ERROR("Skipping request: cookie is warned");
+			return false;
+		}
+		if (status == BanCheckResult::Terminated) {
+			LOG_ERROR("Skipping request: cookie is terminated");
+			return false;
+		}
+		if (status == BanCheckResult::InvalidCookie) {
+			LOG_ERROR("Skipping request: invalid cookie");
+			return false;
+		}
+		return true;
+	}
+
+	static bool canUseCookie(const HBA::AuthConfig &config) {
+		BanCheckResult status = cachedBanStatus(config);
 		if (status == BanCheckResult::Banned) {
 			LOG_ERROR("Skipping request: cookie is banned");
 			return false;
@@ -125,7 +176,7 @@ namespace Roblox {
 	 * @return JSON object with user info, or empty object on failure
 	 */
 	static nlohmann::json getAuthenticatedUser(const HBA::AuthConfig &config) {
-		if (!canUseCookie(config.cookie)) { return nlohmann::json::object(); }
+		if (!canUseCookie(config)) { return nlohmann::json::object(); }
 
 		LOG_INFO("Fetching profile info (HBA-enabled)");
 
@@ -147,37 +198,12 @@ namespace Roblox {
 	 * @return Authentication ticket string, or empty on failure
 	 */
 	static std::string fetchAuthTicket(const HBA::AuthConfig &config) {
-		if (!canUseCookie(config.cookie)) { return ""; }
+		if (!canUseCookie(config)) { return ""; }
 
 		const std::string url = "https://auth.roblox.com/v1/authentication-ticket";
 
-		LOG_INFO("Fetching x-csrf token (HBA-enabled)");
-
-		// First request to get CSRF token
-		auto csrfResponse = AuthenticatedHttp::post(url, config);
-
-		auto csrfToken = csrfResponse.headers.find("x-csrf-token");
-		if (csrfToken == csrfResponse.headers.end()) {
-			LOG_ERROR("Failed to get CSRF token");
-			return "";
-		}
-
 		LOG_INFO("Fetching authentication ticket");
-
-		// Build headers for the actual request
-		std::map<std::string, std::string> headers;
-		headers["Cookie"] = ".ROBLOSECURITY=" + config.cookie;
-		headers["Origin"] = "https://www.roblox.com";
-		headers["Referer"] = "https://www.roblox.com/";
-		headers["X-CSRF-TOKEN"] = csrfToken->second;
-
-		// Generate BAT header if HBA is enabled
-		if (config.hasHBA()) {
-			auto batHeaders = HBA::getClient().generateBATHeaders(config, url, "POST", "");
-			for (const auto &[key, value] : batHeaders) { headers[key] = value; }
-		}
-
-		auto r = HttpClient::postWithHeaders(url, headers, "");
+		auto r = AuthenticatedHttp::postWithAutoCSRF(url, config);
 
 		if (r.status_code < 200 || r.status_code >= 300) {
 			LOG_ERROR("Failed to fetch auth ticket: HTTP " + std::to_string(r.status_code));
@@ -260,11 +286,8 @@ namespace Roblox {
 	 * @param hbaEnabled Whether HBA is enabled for this account
 	 * @return AuthConfig structure
 	 */
-	static HBA::AuthConfig makeAuthConfig(
-		const std::string &cookie,
-		const std::string &hbaPrivateKey = "",
-		bool hbaEnabled = true
-	) {
+	static HBA::AuthConfig
+		makeAuthConfig(const std::string &cookie, const std::string &hbaPrivateKey = "", bool hbaEnabled = true) {
 		return HBA::AuthConfig {
 			.cookie = cookie,
 			.hbaPrivateKey = hbaPrivateKey,

@@ -4,6 +4,7 @@
 #include "system/main_thread.h"
 #include "system/threading.h"
 #include "ui/image.h"
+#include "network/roblox.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -81,7 +82,7 @@ void RenderInventoryTab() {
 
 	// Determine which user we should show
 	uint64_t currentUserId = 0;
-	std::string currentCookie;
+	Roblox::HBA::AuthConfig currentAuth;
 	if (!g_selectedAccountIds.empty()) {
 		int internalId = *g_selectedAccountIds.begin();
 		for (const auto &acc : g_accounts) {
@@ -89,7 +90,7 @@ void RenderInventoryTab() {
 				try {
 					currentUserId = std::stoull(acc.userId);
 				} catch (...) { currentUserId = 0; }
-				currentCookie = acc.cookie;
+				currentAuth = Roblox::makeAuthConfig(acc.cookie, acc.hbaPrivateKey, acc.hbaEnabled);
 				break;
 			}
 		}
@@ -99,7 +100,7 @@ void RenderInventoryTab() {
 				try {
 					currentUserId = std::stoull(acc.userId);
 				} catch (...) { currentUserId = 0; }
-				currentCookie = acc.cookie;
+				currentAuth = Roblox::makeAuthConfig(acc.cookie, acc.hbaPrivateKey, acc.hbaEnabled);
 				break;
 			}
 		}
@@ -208,14 +209,9 @@ void RenderInventoryTab() {
 	// Kick off categories fetch once
 	if (!s_catLoading && s_categories.empty() && !s_catFailed) {
 		s_catLoading = true;
-		Threading::newThread([currentUserId, cookie = currentCookie] {
+		Threading::newThread([currentUserId, auth = currentAuth] {
 			std::string url = "https://inventory.roblox.com/v1/users/" + std::to_string(currentUserId) + "/categories";
-			auto resp = HttpClient::get(
-				url,
-				{
-					{"Cookie", ".ROBLOSECURITY=" + cookie}
-			}
-			);
+			auto resp = Roblox::AuthenticatedHttp::get(url, auth);
 			if (resp.status_code != 200 || resp.text.empty()) {
 				MainThread::Post([] {
 					s_catLoading = false;
@@ -279,9 +275,9 @@ void RenderInventoryTab() {
 	if (currentUserId != 0 && currentUserId != s_equippedUserId && !s_equippedLoading) {
 		s_equippedLoading = true;
 		s_equippedFailed = false;
-		Threading::newThread([uid = currentUserId]() {
+		Threading::newThread([uid = currentUserId, auth = currentAuth]() {
 			std::string url = "https://avatar.roblox.com/v1/users/" + std::to_string(uid) + "/currently-wearing";
-			auto resp = HttpClient::get(url);
+			auto resp = Roblox::AuthenticatedHttp::get(url, auth);
 			if (resp.status_code != 200 || resp.text.empty()) {
 				MainThread::Post([uid]() {
 					s_equippedUserId = uid;
@@ -511,7 +507,7 @@ void RenderInventoryTab() {
 	if (itInv == s_cachedInventories.end() && !s_invLoading) {
 		s_invLoading = true;
 		s_invFailed = false;
-		Threading::newThread([currentUserId, cookie = currentCookie, assetTypeId] {
+		Threading::newThread([currentUserId, auth = currentAuth, assetTypeId] {
 			std::vector<InventoryItem> items;
 
 			std::string cursor; // pagination cursor, empty for first page
@@ -521,12 +517,7 @@ void RenderInventoryTab() {
 								+ "/inventory/" + std::to_string(assetTypeId) + "?limit=100&sortOrder=Asc";
 				if (!cursor.empty()) { url += "&cursor=" + cursor; }
 
-				auto resp = HttpClient::get(
-					url,
-					{
-						{"Cookie", ".ROBLOSECURITY=" + cookie}
-				}
-				);
+				auto resp = Roblox::AuthenticatedHttp::get(url, auth);
 				if (resp.status_code != 200 || resp.text.empty()) {
 					anyError = true;
 					break;

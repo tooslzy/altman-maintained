@@ -84,7 +84,7 @@ namespace Roblox {
 	}
 
 	static std::vector<FriendInfo> getFriends(const std::string &userId, const HBA::AuthConfig &config) {
-		if (!canUseCookie(config.cookie)) { return {}; }
+		if (!canUseCookie(config)) { return {}; }
 
 		LOG_INFO("Fetching friends list (HBA-enabled)");
 
@@ -185,7 +185,7 @@ namespace Roblox {
 	};
 
 	static FriendDetail getUserDetails(const std::string &userId, const HBA::AuthConfig &config) {
-		if (!canUseCookie(config.cookie)) { return FriendDetail {}; }
+		if (!canUseCookie(config)) { return FriendDetail {}; }
 
 		FriendDetail d;
 		std::mutex m;
@@ -285,7 +285,7 @@ namespace Roblox {
 	inline FriendRequestsPage
 		getIncomingFriendRequests(const HBA::AuthConfig &config, const std::string &cursor = {}, int limit = 100) {
 		FriendRequestsPage page;
-		if (!canUseCookie(config.cookie)) { return page; }
+		if (!canUseCookie(config)) { return page; }
 
 		std::string url = "https://friends.roblox.com/v1/my/friends/requests?limit=" + std::to_string(limit);
 		if (!cursor.empty()) { url += "&cursor=" + cursor; }
@@ -402,13 +402,13 @@ namespace Roblox {
 		const HBA::AuthConfig &config,
 		std::string *outResponse = nullptr
 	) {
-		if (!canUseCookie(config.cookie)) {
+		if (!canUseCookie(config)) {
 			if (outResponse) { *outResponse = "Banned/warned cookie"; }
 			return false;
 		}
 		std::string url = "https://friends.roblox.com/v1/users/" + targetUserId + "/accept-friend-request";
 
-		auto resp = AuthenticatedHttp::postWithCSRF(url, config);
+		auto resp = AuthenticatedHttp::postWithAutoCSRF(url, config);
 
 		if (outResponse) { *outResponse = resp.text; }
 		return resp.status_code >= 200 && resp.status_code < 300;
@@ -460,7 +460,7 @@ namespace Roblox {
 		const HBA::AuthConfig &config,
 		std::string *outResponse = nullptr
 	) {
-		if (!canUseCookie(config.cookie)) {
+		if (!canUseCookie(config)) {
 			if (outResponse) { *outResponse = "Banned/warned cookie"; }
 			return false;
 		}
@@ -470,7 +470,7 @@ namespace Roblox {
 			{"friendshipOriginSourceType", 0}
 		};
 
-		auto resp = AuthenticatedHttp::postWithCSRF(url, config, body.dump());
+		auto resp = AuthenticatedHttp::postWithAutoCSRF(url, config, body.dump());
 
 		if (outResponse) { *outResponse = resp.text; }
 
@@ -506,13 +506,13 @@ namespace Roblox {
 	 */
 	inline bool
 		unfriend(const std::string &targetUserId, const HBA::AuthConfig &config, std::string *outResponse = nullptr) {
-		if (!canUseCookie(config.cookie)) {
+		if (!canUseCookie(config)) {
 			if (outResponse) { *outResponse = "Banned/warned cookie"; }
 			return false;
 		}
 		std::string url = "https://friends.roblox.com/v1/users/" + targetUserId + "/unfriend";
 
-		auto resp = AuthenticatedHttp::postWithCSRF(url, config);
+		auto resp = AuthenticatedHttp::postWithAutoCSRF(url, config);
 
 		if (outResponse) { *outResponse = resp.text; }
 
@@ -542,13 +542,13 @@ namespace Roblox {
 	 */
 	inline bool
 		followUser(const std::string &targetUserId, const HBA::AuthConfig &config, std::string *outResponse = nullptr) {
-		if (!canUseCookie(config.cookie)) {
+		if (!canUseCookie(config)) {
 			if (outResponse) { *outResponse = "Banned/warned cookie"; }
 			return false;
 		}
 		std::string url = "https://friends.roblox.com/v1/users/" + targetUserId + "/follow";
 
-		auto resp = AuthenticatedHttp::postWithCSRF(url, config);
+		auto resp = AuthenticatedHttp::postWithAutoCSRF(url, config);
 
 		if (outResponse) { *outResponse = resp.text; }
 		return resp.status_code >= 200 && resp.status_code < 300;
@@ -575,13 +575,13 @@ namespace Roblox {
 		const HBA::AuthConfig &config,
 		std::string *outResponse = nullptr
 	) {
-		if (!canUseCookie(config.cookie)) {
+		if (!canUseCookie(config)) {
 			if (outResponse) { *outResponse = "Banned/warned cookie"; }
 			return false;
 		}
 		std::string url = "https://friends.roblox.com/v1/users/" + targetUserId + "/unfollow";
 
-		auto resp = AuthenticatedHttp::postWithCSRF(url, config);
+		auto resp = AuthenticatedHttp::postWithAutoCSRF(url, config);
 
 		if (outResponse) { *outResponse = resp.text; }
 		return resp.status_code >= 200 && resp.status_code < 300;
@@ -605,13 +605,13 @@ namespace Roblox {
 	 */
 	inline bool
 		blockUser(const std::string &targetUserId, const HBA::AuthConfig &config, std::string *outResponse = nullptr) {
-		if (!canUseCookie(config.cookie)) {
+		if (!canUseCookie(config)) {
 			if (outResponse) { *outResponse = "Banned/warned cookie"; }
 			return false;
 		}
 		std::string url = "https://www.roblox.com/users/" + targetUserId + "/block";
 
-		auto resp = AuthenticatedHttp::postWithCSRF(url, config);
+		auto resp = AuthenticatedHttp::postWithAutoCSRF(url, config);
 
 		if (outResponse) { *outResponse = resp.text; }
 		return resp.status_code >= 200 && resp.status_code < 300;
