@@ -169,8 +169,6 @@ static void RenderFavoritesList(float listWidth, float availableHeight) {
 					menu.onFillGame = [pid = game.placeId]() { FillJoinOptions(pid, ""); };
 					RenderStandardJoinMenu(menu);
 				}
-				// Universe ID copy is now included in the standardized menu
-
 				if (BeginMenu("Rename")) {
 					if (renamingUniverseId != game.universeId) {
 						strncpy(renameBuffer, game.name.c_str(), sizeof(renameBuffer) - 1);
@@ -263,7 +261,6 @@ static void RenderSearchResultsList(float listWidth, float availableHeight) {
 				menu.onFillGame = [pid = game.placeId]() { FillJoinOptions(pid, ""); };
 				RenderStandardJoinMenu(menu);
 			}
-			// Universe ID copy is now included in the standardized menu
 			if (MenuItem("Favorite") && favoriteGameIds.count(game.universeId) == 0) {
 				favoriteGameIds.insert(game.universeId);
 				GameInfo favoriteGameInfo = game;

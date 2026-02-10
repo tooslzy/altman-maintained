@@ -811,7 +811,10 @@ void RenderFriendsTab() {
 					};
 					menu.onFillGame = [pid = f.placeId]() { FillJoinOptions(pid, ""); };
 					menu.onFillInstance = [row = f]() { FillJoinOptions(row.placeId, row.jobId); };
-					RenderStandardJoinMenu(menu);
+					if (BeginMenu("Current game")) {
+						RenderStandardJoinMenu(menu);
+						ImGui::EndMenu();
+					}
 				}
 				Separator();
 				PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.4f, 0.4f, 1.f));

@@ -619,7 +619,10 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 				menu.onFillInstance = [pid = placeId, jid = jobId]() {
 					if (!jid.empty()) { FillJoinOptions(pid, jid); }
 				};
-				RenderStandardJoinMenu(menu);
+				if (BeginMenu("Current game")) {
+					RenderStandardJoinMenu(menu);
+					ImGui::EndMenu();
+				}
 			} else {
 				Separator();
 				TextDisabled("Fetching server info...");

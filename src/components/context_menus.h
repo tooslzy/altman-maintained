@@ -17,74 +17,59 @@ struct StandardJoinMenuParams {
 };
 
 inline void RenderStandardJoinMenu(const StandardJoinMenuParams &p) {
-	if (ImGui::BeginMenu("Game", p.placeId != 0)) {
-		if (ImGui::MenuItem("Copy Place ID", nullptr, false, p.placeId != 0)) {
-			char buf[64];
-			_snprintf_s(buf, _TRUNCATE, "%llu", static_cast<unsigned long long>(p.placeId));
-			ImGui::SetClipboardText(buf);
-		}
-		if (p.universeId != 0 && ImGui::MenuItem("Copy Universe ID")) {
-			char buf[64];
-			_snprintf_s(buf, _TRUNCATE, "%llu", static_cast<unsigned long long>(p.universeId));
-			ImGui::SetClipboardText(buf);
-		}
-		if (ImGui::BeginMenu("Copy Launch Method")) {
-			char buf[512];
-			if (ImGui::MenuItem("Browser Link")) {
-				_snprintf_s(
-					buf,
-					_TRUNCATE,
-					"https://www.roblox.com/games/start?placeId=%llu",
-					(unsigned long long)p.placeId
-				);
-				ImGui::SetClipboardText(buf);
-			}
-			if (ImGui::MenuItem("Deep Link")) {
-				_snprintf_s(buf, _TRUNCATE, "roblox://placeId=%llu", (unsigned long long)p.placeId);
-				ImGui::SetClipboardText(buf);
-			}
-			if (ImGui::MenuItem("JavaScript")) {
-				_snprintf_s(
-					buf,
-					_TRUNCATE,
-					"Roblox.GameLauncher.joinGameInstance(%llu)",
-					(unsigned long long)p.placeId
-				);
-				ImGui::SetClipboardText(buf);
-			}
-			if (ImGui::MenuItem("Roblox Luau")) {
-				_snprintf_s(
-					buf,
-					_TRUNCATE,
-					"game:GetService(\"TeleportService\"):Teleport(%llu)",
-					(unsigned long long)p.placeId
-				);
-				ImGui::SetClipboardText(buf);
-			}
-			ImGui::EndMenu();
-		}
-		ImGui::Separator();
-		if (ImGui::MenuItem("Fill Join Options", nullptr, false, p.placeId != 0)) {
-			if (p.onFillGame) { p.onFillGame(); }
-		}
-		ImGui::Separator();
-		if (ImGui::MenuItem("Launch", nullptr, false, p.enableLaunchGame && p.placeId != 0)) {
-			if (p.onLaunchGame) { p.onLaunchGame(); }
-		}
-		ImGui::EndMenu();
-	}
+	const bool hasGame = p.placeId != 0;
+	const bool hasInstance = !p.jobId.empty();
+	const bool hasInstanceContext = hasInstance && p.placeId != 0;
 
-	// Instance submenu (only when jobId exists)
-	if (!p.jobId.empty() && ImGui::BeginMenu("Instance")) {
-		if (ImGui::MenuItem("Copy Job ID")) { ImGui::SetClipboardText(p.jobId.c_str()); }
-		if (ImGui::BeginMenu("Copy Launch Method")) {
-			if (ImGui::MenuItem("Browser Link")) {
+	const ImVec4 kLaunchColor = ImVec4(0.4f, 0.85f, 0.4f, 1.0f);
+
+	ImGui::TextDisabled("Copy");
+	if (ImGui::MenuItem("Game ID##Copy", nullptr, false, hasGame)) {
+		char buf[64];
+		_snprintf_s(buf, _TRUNCATE, "%llu", static_cast<unsigned long long>(p.placeId));
+		ImGui::SetClipboardText(buf);
+	}
+	if (hasInstance && ImGui::MenuItem("Instance ID##Copy")) { ImGui::SetClipboardText(p.jobId.c_str()); }
+
+	if (ImGui::BeginMenu("Launchers##Copy", hasGame)) {
+		ImGui::TextDisabled("Game launcher");
+		char buf[512];
+		if (ImGui::MenuItem("Browser link##Game", nullptr, false, hasGame)) {
+			_snprintf_s(
+				buf,
+				_TRUNCATE,
+				"https://www.roblox.com/games/start?placeId=%llu",
+				(unsigned long long)p.placeId
+			);
+			ImGui::SetClipboardText(buf);
+		}
+		if (ImGui::MenuItem("Deep link##Game", nullptr, false, hasGame)) {
+			_snprintf_s(buf, _TRUNCATE, "roblox://placeId=%llu", (unsigned long long)p.placeId);
+			ImGui::SetClipboardText(buf);
+		}
+		if (ImGui::MenuItem("JavaScript##Game", nullptr, false, hasGame)) {
+			_snprintf_s(buf, _TRUNCATE, "Roblox.GameLauncher.joinGameInstance(%llu)", (unsigned long long)p.placeId);
+			ImGui::SetClipboardText(buf);
+		}
+		if (ImGui::MenuItem("Roblox Luau##Game", nullptr, false, hasGame)) {
+			_snprintf_s(
+				buf,
+				_TRUNCATE,
+				"game:GetService(\"TeleportService\"):Teleport(%llu)",
+				(unsigned long long)p.placeId
+			);
+			ImGui::SetClipboardText(buf);
+		}
+
+		if (hasInstanceContext) {
+			ImGui::Separator();
+			ImGui::TextDisabled("Instance launcher");
+			if (ImGui::MenuItem("Browser link##Instance")) {
 				std::string link = "https://www.roblox.com/games/start?placeId=" + std::to_string(p.placeId)
 								 + "&gameInstanceId=" + p.jobId;
 				ImGui::SetClipboardText(link.c_str());
 			}
-			if (ImGui::MenuItem("Deep Link")) {
-				char buf[512];
+			if (ImGui::MenuItem("Deep link##Instance")) {
 				_snprintf_s(
 					buf,
 					_TRUNCATE,
@@ -94,26 +79,41 @@ inline void RenderStandardJoinMenu(const StandardJoinMenuParams &p) {
 				);
 				ImGui::SetClipboardText(buf);
 			}
-			if (ImGui::MenuItem("JavaScript")) {
+			if (ImGui::MenuItem("JavaScript##Instance")) {
 				std::string js
 					= "Roblox.GameLauncher.joinGameInstance(" + std::to_string(p.placeId) + ", \"" + p.jobId + "\")";
 				ImGui::SetClipboardText(js.c_str());
 			}
-			if (ImGui::MenuItem("Roblox Luau")) {
+			if (ImGui::MenuItem("Roblox Luau##Instance")) {
 				std::string luau = "game:GetService(\"TeleportService\"):TeleportToPlaceInstance("
 								 + std::to_string(p.placeId) + ", \"" + p.jobId + "\")";
 				ImGui::SetClipboardText(luau.c_str());
 			}
-			ImGui::EndMenu();
-		}
-		ImGui::Separator();
-		if (ImGui::MenuItem("Fill Join Options", nullptr, false, p.placeId != 0)) {
-			if (p.onFillInstance) { p.onFillInstance(); }
-		}
-		ImGui::Separator();
-		if (ImGui::MenuItem("Launch", nullptr, false, p.enableLaunchInstance && p.placeId != 0)) {
-			if (p.onLaunchInstance) { p.onLaunchInstance(); }
 		}
 		ImGui::EndMenu();
+	}
+
+	ImGui::Separator();
+	ImGui::TextDisabled("Fill \"Join Options\"");
+	if (ImGui::MenuItem("Game##Fill", nullptr, false, hasGame)) {
+		if (p.onFillGame) { p.onFillGame(); }
+	}
+	if (hasInstanceContext && ImGui::MenuItem("Instance##Fill")) {
+		if (p.onFillInstance) { p.onFillInstance(); }
+	}
+
+	ImGui::Separator();
+	ImGui::TextDisabled("Launch options");
+	ImGui::PushStyleColor(ImGuiCol_Text, kLaunchColor);
+	if (ImGui::MenuItem("Game##Launch", nullptr, false, p.enableLaunchGame && hasGame)) {
+		if (p.onLaunchGame) { p.onLaunchGame(); }
+	}
+	ImGui::PopStyleColor();
+	if (hasInstanceContext) {
+		ImGui::PushStyleColor(ImGuiCol_Text, kLaunchColor);
+		if (ImGui::MenuItem("Instance##Launch", nullptr, false, p.enableLaunchInstance)) {
+			if (p.onLaunchInstance) { p.onLaunchInstance(); }
+		}
+		ImGui::PopStyleColor();
 	}
 }
