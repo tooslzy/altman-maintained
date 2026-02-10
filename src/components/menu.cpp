@@ -4,7 +4,6 @@
 #include <imgui.h>
 #include <shlobj.h>
 #include <string>
-#include <tlhelp32.h>
 #include <vector>
 #include <windows.h>
 
@@ -272,7 +271,6 @@ static void LaunchWebViewLogin() {
 
 bool RenderMainMenu() {
 	static array<char, 2048> s_cookieInputBuffer = {};
-	static bool s_openClearCachePopup = false;
 	static bool s_openExportPopup = false;
 	static bool s_openImportPopup = false;
 	static char s_password1[128] = "";
@@ -409,75 +407,19 @@ bool RenderMainMenu() {
 		}
 
 		if (BeginMenu("Utilities")) {
-			if (MenuItem("Kill Roblox")) {
-				HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-				PROCESSENTRY32 pe;
-				pe.dwSize = sizeof(pe);
-
-				if (Process32First(hSnap, &pe)) {
-					do {
-						if (_stricmp(pe.szExeFile, "RobloxPlayerBeta.exe") == 0) {
-							HANDLE hProc = OpenProcess(PROCESS_TERMINATE, FALSE, pe.th32ProcessID);
-							if (hProc) {
-								TerminateProcess(hProc, 0);
-								CloseHandle(hProc);
-								LOG_INFO(string("Terminated Roblox process: ") + to_string(pe.th32ProcessID));
-							} else {
-								LOG_ERROR(
-									string("Failed to open Roblox process for termination: ")
-									+ to_string(pe.th32ProcessID) + " (Error: " + to_string(GetLastError()) + ")"
-								);
-							}
-						}
-					} while (Process32Next(hSnap, &pe));
-				} else {
-					LOG_ERROR(
-						string("Process32First failed when trying to kill Roblox. (Error: ") + to_string(GetLastError())
-						+ ")"
-					);
-				}
-				CloseHandle(hSnap);
-				LOG_INFO("Kill Roblox process completed.");
+			PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.4f, 0.4f, 1.f));
+			if (MenuItem("Kill Roblox")) { Threading::newThread(RobloxControl::KillRobloxProcesses); }
+			if (MenuItem("Kill Roblox & Clear Cache")) {
+				Threading::newThread([] {
+					RobloxControl::KillRobloxProcesses();
+					RobloxControl::ClearRobloxCache();
+				});
 			}
-
-			if (MenuItem("Clear Roblox Cache")) {
-				if (RobloxControl::IsRobloxRunning()) {
-					s_openClearCachePopup = true;
-				} else {
-					Threading::newThread(RobloxControl::ClearRobloxCache);
-				}
-			}
-
+			PopStyleColor();
 			ImGui::EndMenu();
 		}
 
 		EndMainMenuBar();
-	}
-
-	if (s_openClearCachePopup) {
-		OpenPopup("ClearCacheConfirm");
-		s_openClearCachePopup = false;
-	}
-
-	if (BeginPopupModal("ClearCacheConfirm", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-		TextWrapped("RobloxPlayerBeta is running. Do you want to kill it before clearing the cache?");
-		Spacing();
-		float killW = CalcTextSize("Kill").x + GetStyle().FramePadding.x * 2.0f;
-		float dontW = CalcTextSize("Don't kill").x + GetStyle().FramePadding.x * 2.0f;
-		float cancelW = CalcTextSize("Cancel").x + GetStyle().FramePadding.x * 2.0f;
-		if (Button("Kill", ImVec2(killW, 0))) {
-			RobloxControl::KillRobloxProcesses();
-			Threading::newThread(RobloxControl::ClearRobloxCache);
-			CloseCurrentPopup();
-		}
-		SameLine(0, GetStyle().ItemSpacing.x);
-		if (Button("Don't kill", ImVec2(dontW, 0))) {
-			Threading::newThread(RobloxControl::ClearRobloxCache);
-			CloseCurrentPopup();
-		}
-		SameLine(0, GetStyle().ItemSpacing.x);
-		if (Button("Cancel", ImVec2(cancelW, 0))) { CloseCurrentPopup(); }
-		EndPopup();
 	}
 
 	if (BeginPopupModal("AddAccountPopup_Browser", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
