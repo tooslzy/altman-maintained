@@ -12,13 +12,7 @@
 inline void CheckForUpdates() {
 	Threading::newThread([]() {
 		const std::string url = "https://api.github.com/repos/crowsyndrome/altman/releases/latest";
-		auto resp = HttpClient::get(
-			url,
-			{
-				{"User-Agent", "AltMan"					   },
-				{"Accept",	   "application/vnd.github+json"}
-		}
-		);
+		auto resp = HttpClient::get(url, {{"User-Agent", "AltMan"}, {"Accept", "application/vnd.github+json"}});
 		if (resp.status_code != 200) {
 			LOG_ERROR("Failed to check for updates: HTTP " + std::to_string(resp.status_code));
 			return;

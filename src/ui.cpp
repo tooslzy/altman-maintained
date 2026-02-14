@@ -27,14 +27,30 @@ struct TabInfo {
 };
 
 static const TabInfo tabs[] = {
-	{"\xEF\x80\x87  Accounts",  Tab_Accounts,	 RenderFullAccountsTabContent},
-	{"\xEF\x83\x80  Friends",	  Tab_Friends,   RenderFriendsTab			   },
-	{"\xEF\x84\x9B  Games",		Tab_Games,	   RenderGamesTab				 },
-	{"\xEF\x88\xB3  Servers",	  Tab_Servers,   RenderServersTab			   },
-	{"\xEF\x8A\x90  Inventory", Tab_Inventory, RenderInventoryTab			 },
-	{"\xEF\x85\x9C  History",	  Tab_History,   RenderHistoryTab			   },
-	{"\xEF\x80\x93  Settings",  Tab_Settings,	 RenderSettingsTab			  },
+	{"\xEF\x80\x87  Accounts", Tab_Accounts, RenderFullAccountsTabContent},
+	{"\xEF\x83\x80  Friends", Tab_Friends, RenderFriendsTab},
+	{"\xEF\x84\x9B  Games", Tab_Games, RenderGamesTab},
+	{"\xEF\x88\xB3  Servers", Tab_Servers, RenderServersTab},
+	{"\xEF\x8A\x90  Inventory", Tab_Inventory, RenderInventoryTab},
+	{"\xEF\x85\x9C  History", Tab_History, RenderHistoryTab},
+	{"\xEF\x80\x93  Settings", Tab_Settings, RenderSettingsTab},
 };
+
+static int FindActiveTabIndex() {
+	for (int i = 0; i < IM_ARRAYSIZE(tabs); ++i) {
+		if (tabs[i].tab_id == g_activeTab) { return i; }
+	}
+
+	return 0;
+}
+
+void CycleMainTab(int direction) {
+	const int step = (direction < 0) ? -1 : 1;
+	const int tab_count = IM_ARRAYSIZE(tabs);
+	const int current = FindActiveTabIndex();
+	const int next = (current + step + tab_count) % tab_count;
+	g_activeTab = tabs[next].tab_id;
+}
 
 char join_value_buf[JOIN_VALUE_BUF_SIZE] = "";
 char join_jobid_buf[JOIN_JOBID_BUF_SIZE] = "";

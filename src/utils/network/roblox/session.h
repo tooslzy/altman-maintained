@@ -22,9 +22,7 @@ namespace Roblox {
 		if (!canUseCookie(config)) { return "Banned"; }
 
 		LOG_INFO("Fetching user presence (HBA-enabled)");
-		nlohmann::json payload = {
-			{"userIds", {userId}}
-		};
+		nlohmann::json payload = {{"userIds", {userId}}};
 		std::string payloadStr = payload.dump();
 		HttpClient::Response response
 			= AuthenticatedHttp::postWithAutoCSRF("https://presence.roblox.com/v1/presence/users", config, payloadStr);
@@ -300,9 +298,7 @@ namespace Roblox {
 		getPresences(const std::vector<uint64_t> &userIds, const HBA::AuthConfig &config) {
 		if (!canUseCookie(config)) { return {}; }
 
-		nlohmann::json payload = {
-			{"userIds", userIds}
-		};
+		nlohmann::json payload = {{"userIds", userIds}};
 		std::string payloadStr = payload.dump();
 
 		auto resp

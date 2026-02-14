@@ -33,17 +33,11 @@ namespace Roblox {
 			size_t end = (std::min)(userIds.size(), i + batchSize);
 			std::vector<uint64_t> batch(userIds.begin() + i, userIds.begin() + end);
 
-			nlohmann::json payload = {
-				{"fields",  {"names.combinedName", "names.username"}},
-				{"userIds", batch								   }
-			};
+			nlohmann::json payload = {{"fields", {"names.combinedName", "names.username"}}, {"userIds", batch}};
 
 			auto resp = HttpClient::post(
 				"https://apis.roblox.com/user-profile-api/v1/user/profiles/get-profiles",
-				{
-					{"Content-Type", "application/json"},
-					{"Accept",	   "application/json"}
-			},
+				{{"Content-Type", "application/json"}, {"Accept", "application/json"}},
 				payload.dump()
 			);
 
@@ -149,12 +143,8 @@ namespace Roblox {
 
 	static FriendInfo getUserInfo(const std::string &userId) {
 		LOG_INFO("Fetching user info");
-		HttpClient::Response resp = HttpClient::get(
-			"https://users.roblox.com/v1/users/" + userId,
-			{
-				{"Accept", "application/json"}
-		}
-		);
+		HttpClient::Response resp
+			= HttpClient::get("https://users.roblox.com/v1/users/" + userId, {{"Accept", "application/json"}});
 
 		if (resp.status_code < 200 || resp.status_code >= 300) {
 			LOG_ERROR("Failed to fetch user info: HTTP " + std::to_string(resp.status_code));
@@ -201,9 +191,7 @@ namespace Roblox {
 			auto resp = AuthenticatedHttp::get(
 				"https://users.roblox.com/v1/users/" + userId,
 				config,
-				{
-					{"Accept", "application/json"}
-			}
+				{{"Accept", "application/json"}}
 			);
 			if (resp.status_code >= 200 && resp.status_code < 300) {
 				nlohmann::json j = HttpClient::decode(resp);
@@ -427,10 +415,7 @@ namespace Roblox {
 	}
 
 	inline uint64_t getUserIdFromUsername(const std::string &username) {
-		nlohmann::json payload = {
-			{"usernames",		  {username}},
-			{"excludeBannedUsers", true	   }
-		};
+		nlohmann::json payload = {{"usernames", {username}}, {"excludeBannedUsers", true}};
 
 		auto resp = HttpClient::post("https://users.roblox.com/v1/usernames/users", {}, payload.dump());
 
@@ -466,9 +451,7 @@ namespace Roblox {
 		}
 		std::string url = "https://friends.roblox.com/v1/users/" + targetUserId + "/request-friendship";
 
-		nlohmann::json body = {
-			{"friendshipOriginSourceType", 0}
-		};
+		nlohmann::json body = {{"friendshipOriginSourceType", 0}};
 
 		auto resp = AuthenticatedHttp::postWithAutoCSRF(url, config, body.dump());
 

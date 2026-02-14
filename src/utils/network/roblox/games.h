@@ -124,9 +124,7 @@ namespace Roblox {
 		const std::string sessionId = generateSessionId();
 		auto resp = HttpClient::get(
 			"https://apis.roblox.com/search-api/omni-search",
-			{
-				{"Accept", "application/json"}
-		},
+			{{"Accept", "application/json"}},
 			cpr::Parameters {{"searchQuery", query}, {"pageToken", ""}, {"sessionId", sessionId}, {"pageType", "all"}}
 		);
 

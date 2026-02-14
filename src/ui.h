@@ -4,6 +4,7 @@
 #include <cstdint>
 
 bool RenderUI();
+void CycleMainTab(int direction);
 
 constexpr int JOIN_VALUE_BUF_SIZE = 128;
 constexpr int JOIN_JOBID_BUF_SIZE = 128;

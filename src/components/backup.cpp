@@ -74,14 +74,14 @@ bool Backup::Export(const std::string &password) {
 	// accounts
 	json accounts = json::array();
 	for (const auto &acct : g_accounts) {
-		accounts.push_back({
-			{"id",			   acct.id			  },
-			{"cookie",		   acct.cookie		  },
-			{"note",			 acct.note		  },
-			{"isFavorite",	   acct.isFavorite	  },
-			{"hbaPrivateKey", acct.hbaPrivateKey},
-			{"hbaEnabled",	   acct.hbaEnabled	  }
-		});
+		accounts.push_back(
+			{{"id", acct.id},
+			 {"cookie", acct.cookie},
+			 {"note", acct.note},
+			 {"isFavorite", acct.isFavorite},
+			 {"hbaPrivateKey", acct.hbaPrivateKey},
+			 {"hbaEnabled", acct.hbaEnabled}}
+		);
 	}
 	j["accounts"] = std::move(accounts);
 	// favorites

@@ -174,12 +174,7 @@ namespace Roblox { namespace HBA {
 
 				HttpClient::Response response;
 				if (!cookie.empty()) {
-					response = HttpClient::get(
-						Constants::METADATA_URL,
-						{
-							{"Cookie", ".ROBLOSECURITY=" + cookie}
-					}
-					);
+					response = HttpClient::get(Constants::METADATA_URL, {{"Cookie", ".ROBLOSECURITY=" + cookie}});
 				} else {
 					response = HttpClient::get(Constants::METADATA_URL, {});
 				}
@@ -280,10 +275,10 @@ namespace Roblox { namespace HBA {
 				// Common HTML entities
 				const std::vector<std::pair<std::string, std::string>> entities = {
 					{"&quot;", "\""},
-					{"&amp;",  "&" },
-					{"&lt;",	 "<" },
-					{"&gt;",	 ">" },
-					{"&nbsp;", " " },
+					{"&amp;", "&"},
+					{"&lt;", "<"},
+					{"&gt;", ">"},
+					{"&nbsp;", " "},
 				};
 
 				for (const auto &entity : entities) {

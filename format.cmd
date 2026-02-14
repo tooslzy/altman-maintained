@@ -20,5 +20,5 @@ for /r %%f in (*.c *.h *.cpp *.hpp *.cc *.hh *.cxx *.hxx *.c++ *.h++) do (
 )
 
 echo All files formatted successfully
-pause >nul 2>nul
+:: ;pause >nul 2>nul
 exit /b 0

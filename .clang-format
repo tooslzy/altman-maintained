@@ -1,6 +1,6 @@
 BasedOnStyle: LLVM
 AlignAfterOpenBracket: BlockIndent
-AlignArrayOfStructures: Left
+AlignArrayOfStructures: None
 AlignConsecutiveAssignments: None
 AlignConsecutiveDeclarations: None
 AlignConsecutiveMacros: None

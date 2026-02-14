@@ -128,12 +128,7 @@ namespace HttpClient {
 	 * @return CSRF token string, or empty on failure
 	 */
 	inline std::string fetchCSRFToken(const std::string &url, const std::string &cookie) {
-		auto response = post(
-			url,
-			{
-				{"Cookie", ".ROBLOSECURITY=" + cookie}
-		}
-		);
+		auto response = post(url, {{"Cookie", ".ROBLOSECURITY=" + cookie}});
 		auto it = response.headers.find("x-csrf-token");
 		if (it != response.headers.end()) { return it->second; }
 		return "";

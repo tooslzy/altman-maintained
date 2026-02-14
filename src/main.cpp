@@ -599,6 +599,22 @@ void CleanupRenderTarget() {
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+	static bool s_consumedCtrlTab = false;
+
+	if ((msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) && wParam == VK_TAB && (GetKeyState(VK_CONTROL) & 0x8000)) {
+		const bool isRepeat = (lParam & (1u << 30)) != 0;
+		if (!isRepeat) {
+			const bool reverse = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+			CycleMainTab(reverse ? -1 : 1);
+		}
+		s_consumedCtrlTab = true;
+		return 0;
+	}
+	if ((msg == WM_KEYUP || msg == WM_SYSKEYUP) && wParam == VK_TAB && s_consumedCtrlTab) {
+		s_consumedCtrlTab = false;
+		return 0;
+	}
+
 	if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam)) { return true; }
 
 	switch (msg) {

@@ -259,25 +259,25 @@ namespace Data {
 				}
 			}
 
-			dataArray.push_back({
-				{"id",			   account.id			 },
-				{"displayName",		account.displayName   },
-				{"username",		 account.username		 },
-				{"userId",		   account.userId		 },
-				{"status",		   account.status		 },
-				{"ageGroup",		 account.ageGroup		 },
-				{"voiceStatus",		account.voiceStatus   },
-				{"voiceBanExpiry",  account.voiceBanExpiry},
-				{"banExpiry",		  account.banExpiry	   },
-				{"note",			 account.note			 },
-				{"encryptedCookie", b64EncryptedCookie	  },
-				{"isFavorite",	   account.isFavorite	 },
-				{"lastLocation",	 account.lastLocation	 },
-				{"placeId",			account.placeId	   },
-				{"jobId",			  account.jobId		   },
-				{"encryptedHbaKey", b64EncryptedHbaKey	  },
-				{"hbaEnabled",	   account.hbaEnabled	 }
-			});
+			dataArray.push_back(
+				{{"id", account.id},
+				 {"displayName", account.displayName},
+				 {"username", account.username},
+				 {"userId", account.userId},
+				 {"status", account.status},
+				 {"ageGroup", account.ageGroup},
+				 {"voiceStatus", account.voiceStatus},
+				 {"voiceBanExpiry", account.voiceBanExpiry},
+				 {"banExpiry", account.banExpiry},
+				 {"note", account.note},
+				 {"encryptedCookie", b64EncryptedCookie},
+				 {"isFavorite", account.isFavorite},
+				 {"lastLocation", account.lastLocation},
+				 {"placeId", account.placeId},
+				 {"jobId", account.jobId},
+				 {"encryptedHbaKey", b64EncryptedHbaKey},
+				 {"hbaEnabled", account.hbaEnabled}}
+			);
 		}
 		out << dataArray.dump(4);
 		LOG_INFO("Saved " + std::to_string(g_accounts.size()) + " accounts");
@@ -318,11 +318,7 @@ namespace Data {
 
 		json arr = json::array();
 		for (auto &f : g_favorites) {
-			arr.push_back({
-				{"universeId", f.universeId},
-				{"placeId",	f.placeId	 },
-				{"name",		 f.name	   }
-			});
+			arr.push_back({{"universeId", f.universeId}, {"placeId", f.placeId}, {"name", f.name}});
 		}
 
 		out << arr.dump(4);
@@ -476,11 +472,7 @@ namespace Data {
 			const std::string &keyUserId = itUser->second;
 			json arr = json::array();
 			for (const auto &f : friends) {
-				arr.push_back({
-					{"userId",	   f.id		   },
-					{"username",	 f.username   },
-					{"displayName", f.displayName}
-				});
+				arr.push_back({{"userId", f.id}, {"username", f.username}, {"displayName", f.displayName}});
 			}
 			if (!root.contains(keyUserId) || !root[keyUserId].is_object()) { root[keyUserId] = json::object(); }
 			root[keyUserId]["friends"] = std::move(arr);
@@ -495,11 +487,7 @@ namespace Data {
 			const std::string &keyUserId = itUser->second;
 			json arr = json::array();
 			for (const auto &f : list) {
-				arr.push_back({
-					{"userId",	   f.id		   },
-					{"username",	 f.username   },
-					{"displayName", f.displayName}
-				});
+				arr.push_back({{"userId", f.id}, {"username", f.username}, {"displayName", f.displayName}});
 			}
 			if (!root.contains(keyUserId) || !root[keyUserId].is_object()) { root[keyUserId] = json::object(); }
 			root[keyUserId]["unfriended"] = std::move(arr);
