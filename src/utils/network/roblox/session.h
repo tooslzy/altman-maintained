@@ -164,6 +164,9 @@ namespace Roblox {
 	// For whoCanJoinMeInExperiences - matches Roblox JoinPrivacy type
 	enum class JoinPrivacy { NoOne, Friends, Following, Followers, All };
 
+	// For updateFriendsAboutMyActivity - matches Roblox's Yes/No string values
+	enum class FriendsAboutMyActivity { Yes, No };
+
 	static inline const char *toApiValue(OnlineStatusPrivacy v) {
 		switch (v) {
 		case OnlineStatusPrivacy::NoOne: return "NoOne";
@@ -186,27 +189,41 @@ namespace Roblox {
 		}
 	}
 
+	static inline const char *toApiValue(FriendsAboutMyActivity v) {
+		switch (v) {
+		case FriendsAboutMyActivity::Yes: return "Yes";
+		case FriendsAboutMyActivity::No: return "No";
+		default: return "No";
+		}
+	}
+
 	/**
-	 * Update only whoCanSeeMyOnlineStatus.
-	 * Returns true on success, false on failure. Error message stored in outError if provided.
+	 * Unified user-settings updater (handles auth/CSRF + shared error handling).
+	 * Expects a partial settings object to PATCH via POST body.
 	 */
-	inline bool updateUserSettingsOnlineStatusVisibility(
+	inline bool updateUserSettings(
 		const HBA::AuthConfig &config,
-		OnlineStatusPrivacy whoCanSeeMyOnlineStatus,
+		const nlohmann::json &settingsPatch,
+		const std::string &actionLabel,
 		std::string *outError = nullptr
 	) {
+		if (!config.hasHBA()) {
+			if (outError) { *outError = "HBA is required to update user settings"; }
+			return false;
+		}
+
 		if (!canUseCookie(config)) {
 			if (outError) { *outError = "Account is banned or warned"; }
 			return false;
 		}
 
+		if (!settingsPatch.is_object() || settingsPatch.empty()) {
+			if (outError) { *outError = "No user settings fields provided"; }
+			return false;
+		}
+
 		const std::string url = "https://apis.roblox.com/user-settings-api/v1/user-settings";
-
-		nlohmann::json body = {
-			{"whoCanSeeMyOnlineStatus", toApiValue(whoCanSeeMyOnlineStatus)},
-		};
-
-		auto resp = AuthenticatedHttp::postWithAutoCSRF(url, config, body.dump());
+		auto resp = AuthenticatedHttp::postWithAutoCSRF(url, config, settingsPatch.dump());
 		if (resp.status_code < 200 || resp.status_code >= 300) {
 			if (outError) {
 				std::string msg = "HTTP " + std::to_string(resp.status_code);
@@ -216,11 +233,27 @@ namespace Roblox {
 						msg = j["errors"][0].value("message", msg);
 					}
 				} catch (...) {}
-				*outError = "Failed to update status visibility: " + msg;
+				*outError = "Failed to update " + actionLabel + ": " + msg;
 			}
 			return false;
 		}
+
 		return true;
+	}
+
+	/**
+	 * Update only whoCanSeeMyOnlineStatus.
+	 * Returns true on success, false on failure. Error message stored in outError if provided.
+	 */
+	inline bool updateUserSettingsOnlineStatusVisibility(
+		const HBA::AuthConfig &config,
+		OnlineStatusPrivacy whoCanSeeMyOnlineStatus,
+		std::string *outError = nullptr
+	) {
+		nlohmann::json patch = {
+			{"whoCanSeeMyOnlineStatus", toApiValue(whoCanSeeMyOnlineStatus)},
+		};
+		return updateUserSettings(config, patch, "status visibility", outError);
 	}
 
 	/**
@@ -232,56 +265,25 @@ namespace Roblox {
 		JoinPrivacy whoCanJoinMeInExperiences,
 		std::string *outError = nullptr
 	) {
-		if (!canUseCookie(config)) {
-			if (outError) { *outError = "Account is banned or warned"; }
-			return false;
-		}
-
-		const std::string url = "https://apis.roblox.com/user-settings-api/v1/user-settings";
-
-		nlohmann::json body = {
+		nlohmann::json patch = {
 			{"whoCanJoinMeInExperiences", toApiValue(whoCanJoinMeInExperiences)},
 		};
-
-		auto resp = AuthenticatedHttp::postWithAutoCSRF(url, config, body.dump());
-		if (resp.status_code < 200 || resp.status_code >= 300) {
-			if (outError) {
-				std::string msg = "HTTP " + std::to_string(resp.status_code);
-				try {
-					auto j = nlohmann::json::parse(resp.text);
-					if (j.contains("errors") && j["errors"].is_array() && !j["errors"].empty()) {
-						msg = j["errors"][0].value("message", msg);
-					}
-				} catch (...) {}
-				*outError = "Failed to update game join visibility: " + msg;
-			}
-			return false;
-		}
-		return true;
+		return updateUserSettings(config, patch, "game join visibility", outError);
 	}
 
 	/**
-	 * Legacy (no HBA): update only whoCanSeeMyOnlineStatus.
+	 * Update updateFriendsAboutMyActivity (Yes/No).
+	 * Returns true on success, false on failure. Error message stored in outError if provided.
 	 */
-	inline bool updateUserSettingsOnlineStatusVisibility(
-		const std::string &cookie,
-		OnlineStatusPrivacy whoCanSeeMyOnlineStatus,
+	inline bool updateFriendsAboutMyActivity(
+		const HBA::AuthConfig &config,
+		FriendsAboutMyActivity updateFriendsAboutMyActivityValue,
 		std::string *outError = nullptr
 	) {
-		HBA::AuthConfig config {.cookie = cookie, .hbaPrivateKey = "", .hbaEnabled = false};
-		return updateUserSettingsOnlineStatusVisibility(config, whoCanSeeMyOnlineStatus, outError);
-	}
-
-	/**
-	 * Legacy (no HBA): update only whoCanJoinMeInExperiences.
-	 */
-	inline bool updateUserSettingsGameJoinVisibility(
-		const std::string &cookie,
-		JoinPrivacy whoCanJoinMeInExperiences,
-		std::string *outError = nullptr
-	) {
-		HBA::AuthConfig config {.cookie = cookie, .hbaPrivateKey = "", .hbaEnabled = false};
-		return updateUserSettingsGameJoinVisibility(config, whoCanJoinMeInExperiences, outError);
+		nlohmann::json patch = {
+			{"updateFriendsAboutMyActivity", toApiValue(updateFriendsAboutMyActivityValue)},
+		};
+		return updateUserSettings(config, patch, "friends activity updates", outError);
 	}
 
 	struct PresenceData {

@@ -173,6 +173,27 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 				}
 			};
 
+			auto applyShareActivityToSelected = [&](Roblox::FriendsAboutMyActivity value) {
+				if (isMultiSelectionContext) {
+					for (auto &a : g_accounts) {
+						if (g_selectedAccountIds.find(a.id) == g_selectedAccountIds.end()) { continue; }
+						if (!AccountFilters::IsAccountUsable(a)) { continue; }
+						auto creds = AccountUtils::credentialsFromAccount(a);
+						Threading::newThread([cfg = creds.toAuthConfig(), value]() {
+							std::string error;
+							if (!Roblox::updateFriendsAboutMyActivity(cfg, value, &error)) { Status::Error(error); }
+						});
+					}
+				} else {
+					if (!AccountFilters::IsAccountUsable(account)) { return; }
+					auto creds = AccountUtils::credentialsFromAccount(account);
+					Threading::newThread([cfg = creds.toAuthConfig(), value]() {
+						std::string error;
+						if (!Roblox::updateFriendsAboutMyActivity(cfg, value, &error)) { Status::Error(error); }
+					});
+				}
+			};
+
 			TextDisabled("Online status");
 			if (Selectable("Everyone##StatusVisibility", false, ImGuiSelectableFlags_DontClosePopups)) {
 				applyStatusToSelected(Roblox::OnlineStatusPrivacy::AllUsers);
@@ -217,8 +238,17 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 				applyJoinToSelected(Roblox::JoinPrivacy::NoOne);
 			}
 
-			ImGui::SetItemDefaultFocus();
+			Separator();
 
+			TextDisabled("Share activity");
+			if (Selectable("Yes##ShareActivity", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyShareActivityToSelected(Roblox::FriendsAboutMyActivity::Yes);
+			}
+			if (Selectable("No##ShareActivity", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyShareActivityToSelected(Roblox::FriendsAboutMyActivity::No);
+			}
+
+			ImGui::SetItemDefaultFocus();
 			ImGui::EndMenu();
 		}
 
