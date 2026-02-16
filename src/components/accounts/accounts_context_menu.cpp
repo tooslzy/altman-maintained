@@ -105,7 +105,7 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 		}
 
 		if (isMultiSelectionContext) {
-			TextUnformatted("Multiple Accounts");
+			Text("Multiple accounts (%d)", static_cast<int>(g_selectedAccountIds.size()));
 			Separator();
 		} else {
 			TextUnformatted("Account: ");
@@ -122,6 +122,31 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 		}
 
 		TextDisabled("Roblox Settings");
+		auto applyInventoryToSelected = [&](Roblox::InventoryVisibility visibility) {
+			if (isMultiSelectionContext) {
+				for (auto &a : g_accounts) {
+					if (g_selectedAccountIds.find(a.id) == g_selectedAccountIds.end()) { continue; }
+					if (!AccountFilters::IsAccountUsable(a)) { continue; }
+					auto creds = AccountUtils::credentialsFromAccount(a);
+					Threading::newThread([cfg = creds.toAuthConfig(), visibility]() {
+						std::string error;
+						if (!Roblox::updateUserSettingsInventoryVisibility(cfg, visibility, &error)) {
+							Status::Error(error);
+						}
+					});
+				}
+			} else {
+				if (!AccountFilters::IsAccountUsable(account)) { return; }
+				auto creds = AccountUtils::credentialsFromAccount(account);
+				Threading::newThread([cfg = creds.toAuthConfig(), visibility]() {
+					std::string error;
+					if (!Roblox::updateUserSettingsInventoryVisibility(cfg, visibility, &error)) {
+						Status::Error(error);
+					}
+				});
+			}
+		};
+
 		if (BeginMenu("Visibility")) {
 			auto applyStatusToSelected = [&](Roblox::OnlineStatusPrivacy privacy) {
 				if (isMultiSelectionContext) {
@@ -248,6 +273,30 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 				applyShareActivityToSelected(Roblox::FriendsAboutMyActivity::No);
 			}
 
+			ImGui::SetItemDefaultFocus();
+			ImGui::EndMenu();
+		}
+
+		if (BeginMenu("Inventory")) {
+			if (Selectable("Everyone##InventoryVisibility", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyInventoryToSelected(Roblox::InventoryVisibility::AllUsers);
+			}
+			if (Selectable(
+					"Friends, followers, & following##InventoryVisibility",
+					false,
+					ImGuiSelectableFlags_DontClosePopups
+				)) {
+				applyInventoryToSelected(Roblox::InventoryVisibility::FriendsFollowingAndFollowers);
+			}
+			if (Selectable("Friends, & following##InventoryVisibility", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyInventoryToSelected(Roblox::InventoryVisibility::FriendsAndFollowing);
+			}
+			if (Selectable("Friends##InventoryVisibility", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyInventoryToSelected(Roblox::InventoryVisibility::Friends);
+			}
+			if (Selectable("No one##InventoryVisibility", false, ImGuiSelectableFlags_DontClosePopups)) {
+				applyInventoryToSelected(Roblox::InventoryVisibility::NoOne);
+			}
 			ImGui::SetItemDefaultFocus();
 			ImGui::EndMenu();
 		}

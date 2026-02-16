@@ -164,6 +164,9 @@ namespace Roblox {
 	// For whoCanJoinMeInExperiences - matches Roblox JoinPrivacy type
 	enum class JoinPrivacy { NoOne, Friends, Following, Followers, All };
 
+	// For whoCanSeeMyInventory - matches Roblox DefaultPrivacy type
+	enum class InventoryVisibility { NoOne, Friends, FriendsAndFollowing, FriendsFollowingAndFollowers, AllUsers };
+
 	// For updateFriendsAboutMyActivity - matches Roblox's Yes/No string values
 	enum class FriendsAboutMyActivity { Yes, No };
 
@@ -186,6 +189,17 @@ namespace Roblox {
 		case JoinPrivacy::Followers: return "Followers";
 		case JoinPrivacy::All: return "All";
 		default: return "All";
+		}
+	}
+
+	static inline const char *toApiValue(InventoryVisibility v) {
+		switch (v) {
+		case InventoryVisibility::NoOne: return "NoOne";
+		case InventoryVisibility::Friends: return "Friends";
+		case InventoryVisibility::FriendsAndFollowing: return "FriendsAndFollowing";
+		case InventoryVisibility::FriendsFollowingAndFollowers: return "FriendsFollowingAndFollowers";
+		case InventoryVisibility::AllUsers: return "AllUsers";
+		default: return "AllUsers";
 		}
 	}
 
@@ -269,6 +283,21 @@ namespace Roblox {
 			{"whoCanJoinMeInExperiences", toApiValue(whoCanJoinMeInExperiences)},
 		};
 		return updateUserSettings(config, patch, "game join visibility", outError);
+	}
+
+	/**
+	 * Update only whoCanSeeMyInventory.
+	 * Returns true on success, false on failure. Error message stored in outError if provided.
+	 */
+	inline bool updateUserSettingsInventoryVisibility(
+		const HBA::AuthConfig &config,
+		InventoryVisibility whoCanSeeMyInventory,
+		std::string *outError = nullptr
+	) {
+		nlohmann::json patch = {
+			{"whoCanSeeMyInventory", toApiValue(whoCanSeeMyInventory)},
+		};
+		return updateUserSettings(config, patch, "inventory visibility", outError);
 	}
 
 	/**
