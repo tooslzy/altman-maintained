@@ -6,7 +6,7 @@
 bool RenderUI();
 void CycleMainTab(int direction);
 
-constexpr int JOIN_VALUE_BUF_SIZE = 128;
+constexpr int JOIN_VALUE_BUF_SIZE = 512;
 constexpr int JOIN_JOBID_BUF_SIZE = 128;
 
 extern char join_value_buf[JOIN_VALUE_BUF_SIZE];

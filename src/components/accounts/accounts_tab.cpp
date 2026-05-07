@@ -308,6 +308,9 @@ void RenderFullAccountsTabContent() {
 	if (join_type_combo_index == 1) {
 		join_options_section_height += GetFrameHeight() + style.ItemSpacing.y;
 		join_options_section_height += GetFrameHeight() + style.ItemSpacing.y;
+	} else if (join_type_combo_index == 2) {
+		join_options_section_height += GetFrameHeight() + style.ItemSpacing.y;
+		join_options_section_height += GetFrameHeight() + style.ItemSpacing.y;
 	} else {
 		join_options_section_height += GetFrameHeight() + style.ItemSpacing.y;
 	}

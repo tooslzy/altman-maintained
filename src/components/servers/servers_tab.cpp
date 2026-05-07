@@ -265,7 +265,7 @@ void RenderServersTab() {
 					if (!accounts.empty()) {
 						LOG_INFO("Joining server (double-click)...");
 						thread([accounts, pId = g_current_placeId_servers, jId = srv.jobId]() {
-							launchRobloxSequential(pId, jId, accounts);
+							launchRobloxSequential(makeInstanceLaunchRequest(pId, jId), accounts);
 						}).detach();
 					} else {
 						LOG_INFO("Selected account not found.");
@@ -292,7 +292,9 @@ void RenderServersTab() {
 						if (it != g_accounts.end()) { accounts.push_back(AccountUtils::credentialsFromAccount(*it)); }
 					}
 					if (!accounts.empty()) {
-						thread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); }).detach();
+						thread([pid, accounts]() {
+							launchRobloxSequential(makePlaceLaunchRequest(pid), accounts);
+						}).detach();
 					}
 				};
 				menu.onLaunchInstance = [pid = g_current_placeId_servers, jid = srv.jobId]() {
@@ -305,7 +307,9 @@ void RenderServersTab() {
 						if (it != g_accounts.end()) { accounts.push_back(AccountUtils::credentialsFromAccount(*it)); }
 					}
 					if (!accounts.empty()) {
-						thread([pid, jid, accounts]() { launchRobloxSequential(pid, jid, accounts); }).detach();
+						thread([pid, jid, accounts]() {
+							launchRobloxSequential(makeInstanceLaunchRequest(pid, jid), accounts);
+						}).detach();
 					}
 				};
 				menu.onFillGame = [pid = g_current_placeId_servers]() { FillJoinOptions(pid, ""); };

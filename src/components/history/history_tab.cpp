@@ -515,7 +515,10 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 							if (!accounts.empty()) {
 								LOG_INFO("Launching game instance from history...");
 								thread([place_id_val, jobId = session.jobId, accounts]() {
-									launchRobloxSequential(place_id_val, jobId, accounts);
+									launchRobloxSequential(
+										makePlaceOrInstanceLaunchRequest(place_id_val, jobId),
+										accounts
+									);
 								}).detach();
 							} else {
 								LOG_INFO("Selected account not found.");
@@ -553,7 +556,9 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 								}
 							}
 							if (!accounts.empty()) {
-								thread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); }).detach();
+								thread([pid, accounts]() {
+									launchRobloxSequential(makePlaceLaunchRequest(pid), accounts);
+								}).detach();
 							}
 						};
 						menu.onLaunchInstance = [pid, jid = session.jobId]() {
@@ -568,7 +573,9 @@ static void DisplayLogDetails(const LogInfo &logInfo) {
 								}
 							}
 							if (!accounts.empty()) {
-								thread([pid, jid, accounts]() { launchRobloxSequential(pid, jid, accounts); }).detach();
+								thread([pid, jid, accounts]() {
+									launchRobloxSequential(makeInstanceLaunchRequest(pid, jid), accounts);
+								}).detach();
 							}
 						};
 						menu.onFillGame = [pid]() {

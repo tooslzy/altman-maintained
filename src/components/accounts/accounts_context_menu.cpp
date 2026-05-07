@@ -365,25 +365,15 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 						string place_id_str = join_value_buf;
 						string job_id_str = join_jobid_buf;
 						Threading::newThread([accs, place_id_str, job_id_str]() {
-							bool hasJob = !job_id_str.empty();
-							auto now_ms = chrono::duration_cast<chrono::milliseconds>(
-											  chrono::system_clock::now().time_since_epoch()
-							)
-											  .count();
 							string out;
+							uint64_t placeId = 0;
+							if (!parseUnsignedId(place_id_str, placeId)) { return; }
+							RobloxLaunchRequest req = makePlaceOrInstanceLaunchRequest(placeId, trimCopy(job_id_str));
 							for (const auto &creds : accs) {
 								string ticket = Roblox::fetchAuthTicket(creds.toAuthConfig());
 								if (ticket.empty()) { continue; }
-								// Hardcoded browser tracker ID
-								string browserTracker = "1";
-								string placeLauncherUrl
-									= "https://assetgame.roblox.com/game/PlaceLauncher.ashx?request=RequestGame%26placeId="
-									+ place_id_str;
-								if (hasJob) { placeLauncherUrl += "%26gameId=" + job_id_str; }
-								string uri = string("roblox-player://1/1+launchmode:play") + "+gameinfo:" + ticket
-										   + "+launchtime:" + to_string(now_ms) + "+browsertrackerid:" + browserTracker
-										   + "+placelauncherurl:" + placeLauncherUrl
-										   + "+robloxLocale:en_us+gameLocale:en_us";
+								string uri = buildRobloxPlayerUri(req, ticket);
+								if (uri.empty()) { continue; }
 								if (!out.empty()) { out += "\n"; }
 								out += uri;
 							}
@@ -412,23 +402,13 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 						string place_id_str = join_value_buf;
 						string job_id_str = join_jobid_buf;
 						Threading::newThread([creds, place_id_str, job_id_str] {
-							bool hasJob = !job_id_str.empty();
-							auto now_ms = chrono::duration_cast<chrono::milliseconds>(
-											  chrono::system_clock::now().time_since_epoch()
-							)
-											  .count();
-							// Hardcoded browser tracker ID
-							string browserTracker = "1";
+							uint64_t placeId = 0;
+							if (!parseUnsignedId(place_id_str, placeId)) { return; }
+							RobloxLaunchRequest req = makePlaceOrInstanceLaunchRequest(placeId, trimCopy(job_id_str));
 							string ticket = Roblox::fetchAuthTicket(creds.toAuthConfig());
 							if (ticket.empty()) { return; }
-							string placeLauncherUrl
-								= "https://assetgame.roblox.com/game/PlaceLauncher.ashx?request=RequestGame%26placeId="
-								+ place_id_str;
-							if (hasJob) { placeLauncherUrl += "%26gameId=" + job_id_str; }
-							string uri = string("roblox-player://1/1+launchmode:play") + "+gameinfo:" + ticket
-									   + "+launchtime:" + to_string(now_ms) + "+browsertrackerid:" + browserTracker
-									   + "+placelauncherurl:" + placeLauncherUrl
-									   + "+robloxLocale:en_us+gameLocale:en_us";
+							string uri = buildRobloxPlayerUri(req, ticket);
+							if (uri.empty()) { return; }
 							SetClipboardText(uri.c_str());
 						});
 					}
@@ -681,7 +661,9 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 						accounts.push_back(AccountUtils::credentialsFromAccount(account));
 					}
 					if (!accounts.empty()) {
-						Threading::newThread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); });
+						Threading::newThread([pid, accounts]() {
+							launchRobloxSequential(makePlaceLaunchRequest(pid), accounts);
+						});
 					}
 				};
 				menu.onLaunchInstance = [pid = placeId, jid = jobId, &account]() {
@@ -691,7 +673,9 @@ void RenderAccountContextMenu(AccountData &account, const string &unique_context
 						accounts.push_back(AccountUtils::credentialsFromAccount(account));
 					}
 					if (!accounts.empty()) {
-						Threading::newThread([pid, jid, accounts]() { launchRobloxSequential(pid, jid, accounts); });
+						Threading::newThread([pid, jid, accounts]() {
+							launchRobloxSequential(makeInstanceLaunchRequest(pid, jid), accounts);
+						});
 					}
 				};
 				menu.onFillGame = [pid = placeId]() { FillJoinOptions(pid, ""); };

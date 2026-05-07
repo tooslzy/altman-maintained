@@ -789,7 +789,9 @@ void RenderFriendsTab() {
 							}
 						}
 						if (!accounts.empty()) {
-							Threading::newThread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); });
+							Threading::newThread([pid, accounts]() {
+								launchRobloxSequential(makePlaceLaunchRequest(pid), accounts);
+							});
 						}
 					};
 					menu.onLaunchInstance = [row = f]() {
@@ -805,7 +807,7 @@ void RenderFriendsTab() {
 						}
 						if (!accounts.empty()) {
 							Threading::newThread([row, accounts]() {
-								launchRobloxSequential(row.placeId, row.jobId, accounts);
+								launchRobloxSequential(makeInstanceLaunchRequest(row.placeId, row.jobId), accounts);
 							});
 						}
 					};
@@ -1120,7 +1122,7 @@ void RenderFriendsTab() {
 				}
 				if (!accounts.empty()) {
 					Threading::newThread([row, accounts]() {
-						launchRobloxSequential(row.placeId, row.jobId, accounts);
+						launchRobloxSequential(makeInstanceLaunchRequest(row.placeId, row.jobId), accounts);
 					});
 				}
 			}

@@ -52,14 +52,53 @@ static const char *join_types_local[] = {
 	"Game",
 	"Instance",
 	"User",
+	"Link",
 };
+
+enum LocalJoinType {
+	JoinType_Game = 0,
+	JoinType_Instance = 1,
+	JoinType_User = 2,
+	JoinType_Link = 3,
+};
+
+static bool join_user_follow_enabled = true;
 
 static const char *GetJoinHintLocal(int idx) {
 	switch (idx) {
-	case 0: return "placeId";
-	case 2: return "username or userId (id=000)";
+	case JoinType_Game: return "placeId";
+	case JoinType_User: return "username or userId (id=000)";
+	case JoinType_Link: return "private server or share link";
 	default: return "";
 	}
+}
+
+static string TrimJoinInput(string s) {
+	auto l = s.find_first_not_of(" \t\n\r");
+	auto r = s.find_last_not_of(" \t\n\r");
+	if (l == string::npos) { return {}; }
+	return s.substr(l, r - l + 1);
+}
+
+static bool IsUnsignedIntegerString(const string &s) {
+	if (s.empty()) { return false; }
+	return all_of(s.begin(), s.end(), [](unsigned char c) { return c >= '0' && c <= '9'; });
+}
+
+static bool IsJobIdString(const string &s) {
+	if (s.empty()) { return false; }
+	auto isHex = [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'); };
+	const int parts[5] = {8, 4, 4, 4, 12};
+	size_t pos = 0;
+	for (int p = 0; p < 5; ++p) {
+		for (int k = 0; k < parts[p]; ++k) {
+			if (pos >= s.size() || !isHex(s[pos++])) { return false; }
+		}
+		if (p < 4) {
+			if (pos >= s.size() || s[pos++] != '-') { return false; }
+		}
+	}
+	return pos == s.size();
 }
 
 void FillJoinOptions(uint64_t placeId, const std::string &jobId) {
@@ -82,14 +121,16 @@ void RenderJoinOptions() {
 		"Join Options:\n"
 		"- Game: joins a game with its placeId\n"
 		"- Instance: joins the instance of a game with its placeId & jobId\n"
-		"- User: joins the instance a user is in with their username or userId (formatted as id=000)\n"
-		"\t- User option is NOT a sniper, it only works for users who have joins on!"
+		"- User: accepts username or userId (formatted as id=000)\n"
+		"\t- Follow checked: lets Roblox resolve the user's live destination\n"
+		"\t- Follow unchecked: manually resolves the user to placeId and jobId\n"
+		"- Link: accepts supported Roblox game, start, private server, and share links"
 	);
 	Spacing();
 	Combo(" Join Type", &join_type_combo_index, join_types_local, IM_ARRAYSIZE(join_types_local));
 
 	auto tryMatchFavorite = [&]() {
-		if (join_type_combo_index != 0) { return; }
+		if (join_type_combo_index != JoinType_Game) { return; }
 		std::string input = join_value_buf;
 		auto l = input.find_first_not_of(" \t\n\r");
 		auto r = input.find_last_not_of(" \t\n\r");
@@ -115,7 +156,7 @@ void RenderJoinOptions() {
 		}
 	};
 
-	if (join_type_combo_index == 1) {
+	if (join_type_combo_index == JoinType_Instance) {
 		float w = GetContentRegionAvail().x;
 		float minField = GetFontSize() * 6.25f; // ~100px
 		float minWide = GetFontSize() * 26.25f; // ~420px
@@ -128,19 +169,8 @@ void RenderJoinOptions() {
 			std::string s = join_value_buf;
 			auto l = s.find_first_not_of(" \t\n\r");
 			auto r = s.find_last_not_of(" \t\n\r");
-			if (l == std::string::npos) {
-				s.clear();
-			} else {
-				s = s.substr(l, r - l + 1);
-			}
-			if (!s.empty()) {
-				for (char c : s) {
-					if (c < '0' || c > '9') {
-						placeErr = true;
-						break;
-					}
-				}
-			}
+			s = TrimJoinInput(s);
+			if (!s.empty() && !IsUnsignedIntegerString(s)) { placeErr = true; }
 		}
 		if (placeErr) {
 			PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
@@ -165,34 +195,8 @@ void RenderJoinOptions() {
 			std::string s = join_jobid_buf;
 			auto l = s.find_first_not_of(" \t\n\r");
 			auto r = s.find_last_not_of(" \t\n\r");
-			if (l == std::string::npos) {
-				s.clear();
-			} else {
-				s = s.substr(l, r - l + 1);
-			}
-			if (!s.empty()) {
-				auto isHex
-					= [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'); };
-				const int parts[5] = {8, 4, 4, 4, 12};
-				int idx = 0;
-				size_t pos = 0;
-				for (int p = 0; p < 5; ++p) {
-					for (int k = 0; k < parts[p]; ++k) {
-						if (pos >= s.size() || !isHex(s[pos++])) {
-							jobErr = true;
-							break;
-						}
-					}
-					if (jobErr) { break; }
-					if (p < 4) {
-						if (pos >= s.size() || s[pos++] != '-') {
-							jobErr = true;
-							break;
-						}
-					}
-				}
-				if (!jobErr && pos != s.size()) { jobErr = true; }
-			}
+			s = TrimJoinInput(s);
+			if (!s.empty() && !IsJobIdString(s)) { jobErr = true; }
 		}
 		if (jobErr) {
 			PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
@@ -212,35 +216,19 @@ void RenderJoinOptions() {
 		if (w < minWide) { w = minWide; }
 		PushItemWidth(w);
 		bool showError = false;
-		if (join_type_combo_index == 2) {
+		if (join_type_combo_index == JoinType_User) {
 			std::string preview = join_value_buf;
 			UserSpecifier tmp {};
-			std::string trimmed = preview;
-			auto l = trimmed.find_first_not_of(" \t\n\r");
-			auto r = trimmed.find_last_not_of(" \t\n\r");
-			if (l == std::string::npos) {
-				trimmed.clear();
-			} else {
-				trimmed = trimmed.substr(l, r - l + 1);
-			}
+			std::string trimmed = TrimJoinInput(preview);
 			if (!trimmed.empty() && !parseUserSpecifier(trimmed, tmp)) { showError = true; }
-		} else if (join_type_combo_index == 0) {
+		} else if (join_type_combo_index == JoinType_Game) {
 			std::string s = join_value_buf;
-			auto l = s.find_first_not_of(" \t\n\r");
-			auto r = s.find_last_not_of(" \t\n\r");
-			if (l == std::string::npos) {
-				s.clear();
-			} else {
-				s = s.substr(l, r - l + 1);
-			}
-			if (!s.empty()) {
-				for (char c : s) {
-					if (c < '0' || c > '9') {
-						showError = true;
-						break;
-					}
-				}
-			}
+			s = TrimJoinInput(s);
+			if (!s.empty() && !IsUnsignedIntegerString(s)) { showError = true; }
+		} else if (join_type_combo_index == JoinType_Link) {
+			std::string s = TrimJoinInput(join_value_buf);
+			RobloxLaunchRequest tmp {};
+			if (!s.empty() && !parseRobloxLaunchLink(s, tmp)) { showError = true; }
 		}
 		if (showError) {
 			PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
@@ -259,141 +247,33 @@ void RenderJoinOptions() {
 			PopStyleVar();
 		}
 		PopItemWidth();
+
+		if (join_type_combo_index == JoinType_User) { Checkbox("Follow", &join_user_follow_enabled); }
 	}
 
 	Separator();
 	bool allowJoin = true;
-	if (join_type_combo_index == 2) {
-		std::string s = join_value_buf;
-		auto l = s.find_first_not_of(" \t\n\r");
-		auto r = s.find_last_not_of(" \t\n\r");
-		if (l == std::string::npos) {
-			s.clear();
-		} else {
-			s = s.substr(l, r - l + 1);
-		}
+	if (join_type_combo_index == JoinType_User) {
+		std::string s = TrimJoinInput(join_value_buf);
 		UserSpecifier tmp {};
 		if (s.empty() || !parseUserSpecifier(s, tmp)) { allowJoin = false; }
-	} else if (join_type_combo_index == 1) {
-		std::string pid = join_value_buf;
-		std::string jid = join_jobid_buf;
-		auto trim = [](std::string &x) {
-			auto l = x.find_first_not_of(" \t\n\r");
-			auto r = x.find_last_not_of(" \t\n\r");
-			if (l == std::string::npos) {
-				x.clear();
-			} else {
-				x = x.substr(l, r - l + 1);
-			}
-		};
-		trim(pid);
-		trim(jid);
-		if (pid.empty() || !std::all_of(pid.begin(), pid.end(), [](char c) { return c >= '0' && c <= '9'; })) {
-			allowJoin = false;
-		}
-		auto isHex = [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'); };
-		if (!jid.empty()) {
-			const int parts[5] = {8, 4, 4, 4, 12};
-			size_t pos = 0;
-			bool err = false;
-			for (int p = 0; p < 5; ++p) {
-				for (int k = 0; k < parts[p]; ++k) {
-					if (pos >= jid.size() || !isHex(jid[pos++])) {
-						err = true;
-						break;
-					}
-				}
-				if (err) { break; }
-				if (p < 4) {
-					if (pos >= jid.size() || jid[pos++] != '-') {
-						err = true;
-						break;
-					}
-				}
-			}
-			if (err || pos != jid.size()) { allowJoin = false; }
-		} else {
-			allowJoin = false;
-		}
-	} else if (join_type_combo_index == 0) {
-		std::string pid = join_value_buf;
-		auto l = pid.find_first_not_of(" \t\n\r");
-		auto r = pid.find_last_not_of(" \t\n\r");
-		if (l == std::string::npos) {
-			pid.clear();
-		} else {
-			pid = pid.substr(l, r - l + 1);
-		}
-		if (pid.empty() || !std::all_of(pid.begin(), pid.end(), [](char c) { return c >= '0' && c <= '9'; })) {
-			allowJoin = false;
-		}
+	} else if (join_type_combo_index == JoinType_Instance) {
+		std::string pid = TrimJoinInput(join_value_buf);
+		std::string jid = TrimJoinInput(join_jobid_buf);
+		if (!IsUnsignedIntegerString(pid) || !IsJobIdString(jid)) { allowJoin = false; }
+	} else if (join_type_combo_index == JoinType_Game) {
+		std::string pid = TrimJoinInput(join_value_buf);
+		if (!IsUnsignedIntegerString(pid)) { allowJoin = false; }
+	} else if (join_type_combo_index == JoinType_Link) {
+		std::string link = TrimJoinInput(join_value_buf);
+		RobloxLaunchRequest tmp {};
+		if (link.empty() || !parseRobloxLaunchLink(link, tmp)) { allowJoin = false; }
 	}
 	BeginDisabled(!allowJoin);
 	if (Button(" \xEF\x8B\xB6  Launch ")) {
 		auto doJoin = [&]() {
 			if (g_selectedAccountIds.empty()) {
 				ModalPopup::Add("Select an account first.");
-				return;
-			}
-
-			if (join_type_combo_index == 2) {
-				string userInput = join_value_buf;
-				vector<Roblox::HBA::AuthCredentials> accounts;
-				for (int id : g_selectedAccountIds) {
-					auto it = std::find_if(g_accounts.begin(), g_accounts.end(), [id](auto &a) { return a.id == id; });
-					if (it != g_accounts.end() && AccountFilters::IsAccountUsable(*it)) {
-						accounts.push_back(AccountUtils::credentialsFromAccount(*it));
-					}
-				}
-				if (accounts.empty()) { return; }
-
-				Threading::newThread([userInput, accounts]() {
-					try {
-						UserSpecifier spec {};
-						if (!parseUserSpecifier(userInput, spec)) {
-							Status::Error("Enter username or userId (id=000)");
-							return;
-						}
-						uint64_t uid = 0;
-						if (spec.isId) {
-							uid = spec.id;
-						} else {
-							uid = Roblox::getUserIdFromUsername(spec.username);
-						}
-						auto pres = Roblox::getPresences({uid}, accounts.front().toAuthConfig());
-						auto it = pres.find(uid);
-						if (it == pres.end() || it->second.presence != "InGame" || it->second.placeId == 0
-							|| it->second.jobId.empty()) {
-							Status::Error("User is not joinable");
-							return;
-						}
-
-						launchRobloxSequential(it->second.placeId, it->second.jobId, accounts);
-					} catch (const std::exception &e) {
-						LOG_ERROR(std::string("Join by username failed: ") + e.what());
-						Status::Error("Failed to join by username");
-					}
-				});
-				return;
-			}
-
-			uint64_t placeId_val = 0;
-			std::string jobId_str;
-
-			try {
-				placeId_val = std::stoull(join_value_buf);
-
-				if (join_type_combo_index == 1) {
-					jobId_str = join_jobid_buf;
-				} else if (join_type_combo_index != 0) {
-					LOG_ERROR("Error: Join type not supported for direct launch");
-					return;
-				}
-			} catch (const std::invalid_argument &ia) {
-				LOG_ERROR("Invalid numeric input for join: " + std::string(ia.what()));
-				return;
-			} catch (const std::out_of_range &oor) {
-				LOG_ERROR("Numeric input out of range for join: " + std::string(oor.what()));
 				return;
 			}
 
@@ -404,9 +284,68 @@ void RenderJoinOptions() {
 					accounts.push_back(AccountUtils::credentialsFromAccount(*it));
 				}
 			}
+			if (accounts.empty()) { return; }
 
-			Threading::newThread([placeId_val, jobId_str, accounts]() {
-				launchRobloxSequential(placeId_val, jobId_str, accounts);
+			int joinType = join_type_combo_index;
+			bool followUser = join_user_follow_enabled;
+			string valueInput = TrimJoinInput(join_value_buf);
+			string jobInput = TrimJoinInput(join_jobid_buf);
+
+			Threading::newThread([joinType, followUser, valueInput, jobInput, accounts]() {
+				try {
+					RobloxLaunchRequest req {};
+
+					if (joinType == JoinType_User) {
+						UserSpecifier spec {};
+						if (!parseUserSpecifier(valueInput, spec)) {
+							Status::Error("Enter username or userId (id=000)");
+							return;
+						}
+						uint64_t uid = spec.isId ? spec.id : Roblox::getUserIdFromUsername(spec.username);
+
+						if (followUser) {
+							req.kind = RobloxJoinKind::UserFollow;
+							req.userId = uid;
+							req.username = spec.username;
+							launchRobloxSequential(req, accounts);
+							return;
+						}
+
+						auto pres = Roblox::getPresences({uid}, accounts.front().toAuthConfig());
+						auto it = pres.find(uid);
+						if (it == pres.end() || it->second.presence != "InGame" || it->second.placeId == 0
+							|| it->second.jobId.empty()) {
+							Status::Error("User is not joinable");
+							return;
+						}
+
+						req.kind = RobloxJoinKind::UserResolved;
+						req.placeId = it->second.placeId;
+						req.jobId = it->second.jobId;
+						req.userId = uid;
+						req.username = spec.username;
+						launchRobloxSequential(req, accounts);
+						return;
+					}
+
+					if (joinType == JoinType_Link) {
+						std::string error;
+						if (!resolveRobloxLaunchLink(valueInput, accounts.front(), req, &error)) {
+							Status::Error(error.empty() ? "Unsupported Roblox link" : error);
+							return;
+						}
+						launchRobloxSequential(req, accounts);
+						return;
+					}
+
+					uint64_t placeId = std::stoull(valueInput);
+					req = joinType == JoinType_Instance ? makeInstanceLaunchRequest(placeId, jobInput)
+														: makePlaceLaunchRequest(placeId);
+					launchRobloxSequential(req, accounts);
+				} catch (const std::exception &e) {
+					LOG_ERROR(std::string("Join failed: ") + e.what());
+					Status::Error("Failed to launch Roblox");
+				}
 			});
 		};
 #ifdef _WIN32
@@ -426,5 +365,6 @@ void RenderJoinOptions() {
 		join_value_buf[0] = '\0';
 		join_jobid_buf[0] = '\0';
 		join_type_combo_index = 0;
+		join_user_follow_enabled = true;
 	}
 }

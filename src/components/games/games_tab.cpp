@@ -163,7 +163,9 @@ static void RenderFavoritesList(float listWidth, float availableHeight) {
 							}
 						}
 						if (!accounts.empty()) {
-							thread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); }).detach();
+							thread([pid, accounts]() {
+								launchRobloxSequential(makePlaceLaunchRequest(pid), accounts);
+							}).detach();
 						}
 					};
 					menu.onFillGame = [pid = game.placeId]() { FillJoinOptions(pid, ""); };
@@ -255,7 +257,9 @@ static void RenderSearchResultsList(float listWidth, float availableHeight) {
 						if (it != g_accounts.end()) { accounts.push_back(AccountUtils::credentialsFromAccount(*it)); }
 					}
 					if (!accounts.empty()) {
-						thread([pid, accounts]() { launchRobloxSequential(pid, "", accounts); }).detach();
+						thread([pid, accounts]() {
+							launchRobloxSequential(makePlaceLaunchRequest(pid), accounts);
+						}).detach();
 					}
 				};
 				menu.onFillGame = [pid = game.placeId]() { FillJoinOptions(pid, ""); };
@@ -513,7 +517,7 @@ static void RenderGameDetailsPanel(float panelWidth, float availableHeight) {
 				}
 				if (!accounts.empty()) {
 					thread([placeId = gameInfo.placeId, accounts]() {
-						launchRobloxSequential(placeId, "", accounts);
+						launchRobloxSequential(makePlaceLaunchRequest(placeId), accounts);
 					}).detach();
 				} else {
 					Status::Error("Selected account not found to launch game.");

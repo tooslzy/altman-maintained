@@ -10,11 +10,28 @@ if exist .\build (
 	if /i "!CLEAN!"=="y" (
 		echo Cleaning previous build artifacts...
 
-		del /f /s /q .\vcpkg_installed >nul 2>nul
-		rmdir /s /q .\vcpkg_installed >nul 2>nul
+		del /f /s /q .\vcpkg_installed\ >nul 2>nul
+		rmdir /s /q .\vcpkg_installed\* >nul 2>nul
+		for /D %%D in (".\vcpkg_installed\*") do (
+			del /f /s /q "%%D" >nul 2>&1
+			rd /s /q "%%D" >nul 2>&1
+		)
 
-		del /f /s /q .\build >nul 2>nul
-		rmdir /s /q .\build >nul 2>nul
+		del /f /s /q .\build\* >nul 2>nul
+		rmdir /s /q .\build\ >nul 2>nul
+		for /D %%D in (".\build\*") do (
+			del /f /s /q "%%D" >nul 2>&1
+			rd /s /q "%%D" >nul 2>&1
+		)
+	)
+)
+
+if exist .\build\altman\ (
+	del /f /s /q .\build\altman\* >nul 2>nul
+	rmdir /s /q .\build\altman\ >nul 2>nul
+	for /D %%D in (".\build\altman\*") do (
+		del /f /s /q "%%D" >nul 2>&1
+		rd /s /q "%%D" >nul 2>&1
 	)
 )
 
