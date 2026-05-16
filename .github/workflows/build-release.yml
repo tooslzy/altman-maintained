@@ -12,7 +12,6 @@ jobs:
 
         env:
             VCPKG_ROOT: C:\vcpkg
-            VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\.cache\vcpkg\archives
 
         steps:
             - name: Checkout
@@ -20,36 +19,33 @@ jobs:
               with:
                   fetch-depth: 0
 
-            - name: Setup MSVC
+            - name: Set up MSVC
               uses: ilammy/msvc-dev-cmd@v1
-
-            - name: Cache vcpkg binary packages
-              uses: actions/cache@v4
-              with:
-                  path: .cache\vcpkg\archives
-                  key: vcpkg-archives-${{ runner.os }}-x64-windows-static-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json', '**/vcpkg-lock.json') }}
-                  restore-keys: |
-                      vcpkg-archives-${{ runner.os }}-x64-windows-static-
 
             - name: Clone vcpkg
               run: |
                   git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
                   C:\vcpkg\bootstrap-vcpkg.bat
 
-            - name: Create vcpkg cache directory
-              run: New-Item -ItemType Directory -Force -Path "${{ env.VCPKG_DEFAULT_BINARY_CACHE }}"
+            - name: Clean workspace
               shell: pwsh
+              run: |
+                  Remove-Item -Recurse -Force build, vcpkg_installed, altman.zip -ErrorAction SilentlyContinue
+
+            - name: Create build directory
+              shell: pwsh
+              run: New-Item -ItemType Directory -Force -Path build
 
             - name: Install dependencies
               run: C:\vcpkg\vcpkg.exe install --triplet x64-windows-static
 
-            - name: Configure
-              run: cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -A x64 -DCMAKE_BUILD_TYPE=Release
+            - name: Configure CMake
+              run: cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -A x64 -DVCPKG_TARGET_TRIPLET=x64-windows-static -DCMAKE_BUILD_TYPE=Release
 
-            - name: Build
-              run: cmake --build build --config Release -- /m
+            - name: Build project
+              run: cmake --build build --config Release --parallel
 
-            - name: Package
+            - name: Package release
               shell: pwsh
               run: |
                   $Timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
@@ -59,7 +55,7 @@ jobs:
                   Compress-Archive -Path (Join-Path $ReleaseDir '*') -DestinationPath "altman.zip" -Force
                   echo "RELEASE_TIMESTAMP=$Timestamp" >> $env:GITHUB_ENV
 
-            - name: Create Release
+            - name: Create release
               shell: pwsh
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
